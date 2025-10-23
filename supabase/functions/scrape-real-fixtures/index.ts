@@ -270,9 +270,45 @@ Deno.serve(async (req: Request) => {
       };
     });
 
+    const { data: existingEvents } = await supabase
+      .from('sports_events')
+      .select('title, start_time, home_team, away_team')
+      .eq('company_id', company_id);
+
+    const existingSet = new Set(
+      (existingEvents || []).map(e =>
+        `${e.title}-${e.start_time}-${e.home_team}-${e.away_team}`
+      )
+    );
+
+    const newEvents = eventsToInsert.filter(event => {
+      const key = `${event.title}-${event.start_time}-${event.home_team}-${event.away_team}`;
+      return !existingSet.has(key);
+    });
+
+    if (newEvents.length === 0) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          count: 0,
+          message: 'All events already exist, no duplicates added',
+          sources: {
+            api_football: apiFootballKey ? 'used' : 'not configured',
+            thesportsdb: 'used'
+          }
+        }),
+        {
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+    }
+
     const { data: insertedEvents, error: insertError } = await supabase
       .from('sports_events')
-      .insert(eventsToInsert)
+      .insert(newEvents)
       .select();
 
     if (insertError) {
