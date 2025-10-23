@@ -1,6 +1,7 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { base44 } from "@/api/base44Client";
+import { useAuth } from "@/contexts/AuthContext";
+import { channelsService, sitesService, sportsEventsService, siteEventsService } from "@/services/database";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tv, MapPin, Calendar, Activity } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -9,52 +10,46 @@ import { createPageUrl } from "@/utils";
 import { format, isToday, isTomorrow, addDays } from "date-fns";
 
 export default function AdminDashboard() {
-  const [user, setUser] = React.useState(null);
+  const { profile } = useAuth();
   const [companyId, setCompanyId] = React.useState(null);
 
   React.useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const currentUser = await base44.auth.me();
-        setUser(currentUser);
-        
-        const viewingCompanyId = localStorage.getItem('superAdminViewingCompany');
-        if (currentUser.is_super_admin && viewingCompanyId) {
-          setCompanyId(viewingCompanyId);
-        } else {
-          setCompanyId(currentUser.company_id);
-        }
-      } catch (error) {
-        console.error("Error loading user:", error);
-      }
-    };
-    loadUser();
-  }, []);
+    if (!profile) return;
+
+    const viewingCompanyId = localStorage.getItem('superAdminViewingCompany');
+    if (profile.is_super_admin && viewingCompanyId) {
+      setCompanyId(viewingCompanyId);
+    } else {
+      setCompanyId(profile.company_id);
+    }
+  }, [profile]);
 
   const { data: channels = [], isLoading: loadingChannels } = useQuery({
     queryKey: ['channels', companyId],
-    queryFn: () => base44.entities.Channel.filter({ company_id: companyId }),
+    queryFn: () => channelsService.getByCompany(companyId),
     enabled: !!companyId,
   });
 
   const { data: sites = [], isLoading: loadingSites } = useQuery({
     queryKey: ['sites', companyId],
-    queryFn: () => base44.entities.Site.filter({ company_id: companyId }),
+    queryFn: () => sitesService.getByCompany(companyId),
     enabled: !!companyId,
   });
 
   const { data: events = [], isLoading: loadingEvents } = useQuery({
     queryKey: ['events', companyId],
-    queryFn: () => base44.entities.SportEvent.filter({ company_id: companyId }, 'start_time'),
+    queryFn: () => sportsEventsService.getByCompany(companyId),
     enabled: !!companyId,
   });
 
   const { data: schedules = [] } = useQuery({
     queryKey: ['schedules', companyId],
     queryFn: async () => {
-      const allSchedules = await base44.entities.SiteSchedule.list();
-      const companySiteIds = sites.map(s => s.id);
-      return allSchedules.filter(s => companySiteIds.includes(s.site_id));
+      if (!sites.length) return [];
+      const allSchedules = await Promise.all(
+        sites.map(site => siteEventsService.getBySite(site.id))
+      );
+      return allSchedules.flat();
     },
     enabled: !!companyId && sites.length > 0,
   });

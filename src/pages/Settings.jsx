@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { useAuth } from "@/contexts/AuthContext";
+import { profilesService } from "@/services/database";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,31 +10,20 @@ import { Loader2, Shield, Save } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function Settings() {
-  const [user, setUser] = useState(null);
+  const { profile, loading: authLoading } = useAuth();
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [saveMessage, setSaveMessage] = useState(null);
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const currentUser = await base44.auth.me();
-        setUser(currentUser);
-        setIsSuperAdmin(currentUser.is_super_admin || false);
-      } catch (error) {
-        console.error("Error loading user:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadUser();
-  }, []);
+    if (profile) {
+      setIsSuperAdmin(profile.is_super_admin || false);
+    }
+  }, [profile]);
 
   const updateMutation = useMutation({
     mutationFn: async (data) => {
-      // Update using the User entity directly with only the fields we want to change
-      return await base44.entities.User.update(user.id, {
+      return await profilesService.updateProfile(profile.id, {
         is_super_admin: data.is_super_admin
       });
     },
@@ -55,7 +45,7 @@ export default function Settings() {
     updateMutation.mutate({ is_super_admin: isSuperAdmin });
   };
 
-  if (loading) {
+  if (authLoading || !profile) {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
