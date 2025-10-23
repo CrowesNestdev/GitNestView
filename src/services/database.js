@@ -221,12 +221,7 @@ export const sportsEventsService = {
 
     if (startDate) {
       query = query.gte('start_time', startDate);
-    } else {
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      query = query.gte('start_time', yesterday.toISOString());
     }
-
     if (endDate) {
       query = query.lte('start_time', endDate);
     }

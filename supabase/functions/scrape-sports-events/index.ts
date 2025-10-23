@@ -55,11 +55,13 @@ Deno.serve(async (req: Request) => {
 
     const channelNames = channels.map(c => c.name).join(', ');
 
-    const prompt = `Generate 80-120 sports events for the next 4 weeks based on these TV channels: ${channelNames}.
+    const prompt = `Generate a realistic and diverse international sports schedule for the next 4 weeks for these TV channels: ${channelNames}.
 
-Create a diverse schedule with UK, European, and International sports:
+IMPORTANT: All times must be in UK timezone (GMT/BST). Use proper UK scheduling patterns.
 
-UK & European Sports (60% of events):
+Include a DIVERSE MIX of UK, European, and International sports:
+
+UK & European Sports (PRIORITY):
 - Football: Premier League, Championship, EFL Cup, FA Cup, Champions League, Europa League, La Liga, Serie A, Bundesliga, Ligue 1
 - Rugby Union: Six Nations, Premiership Rugby, European Champions Cup, United Rugby Championship
 - Rugby League: Super League, Challenge Cup, NRL
@@ -72,36 +74,39 @@ UK & European Sports (60% of events):
 - Formula 1: Grand Prix races
 - Tennis: Wimbledon, ATP/WTA Tours
 
-International Sports (40% of events):
+International Sports:
 - Basketball: NBA, EuroLeague
 - American Football: NFL
 - Ice Hockey: NHL
 - Baseball: MLB
 - UFC/MMA events
 
-For each event provide:
-- title: Full descriptive title (e.g., "Premier League: Arsenal vs Liverpool")
-- sport_type: Sport name (e.g., "Football", "Rugby Union", "Cricket", "Darts")
+For each event, provide:
+- title: Full descriptive title
+- sport_type: Type of sport (e.g., Football, Rugby Union, Cricket, Darts, Snooker, etc.)
 - league: League/competition name
-- home_team: Home team (if applicable)
-- away_team: Away team (if applicable)
+- home_team: Home team name (if applicable)
+- away_team: Away team name (if applicable)
 - start_time: ISO datetime string in UK timezone
-- channel_name: One of these channels: ${channelNames}
-- description: Brief description (optional)
+- channel_name: Which channel will broadcast it
+- description: Brief event description (optional)
 
-Requirements:
-- ALL times in UK timezone (GMT/BST)
-- Use realistic UK TV scheduling patterns:
+IMPORTANT:
+- Generate 80-120 events total
+- 60% should be UK/European sports
+- 40% international sports
+- ALL TIMES IN UK TIMEZONE (GMT/BST)
+- Realistic UK scheduling:
   * Football: Saturdays 12:30pm, 3pm, 5:30pm; Sundays 2pm, 4:30pm; Midweek 7:45pm, 8pm
   * Rugby: Saturdays 3pm, 5:30pm; Fridays 7:45pm
-  * Cricket: 11am or 6:30pm
-  * Darts/Snooker: 7pm-9pm
-  * NFL: Sunday 6pm, 9:25pm; Monday 1:20am (UK time)
-  * NBA: 12:30am-3am (UK time)
+  * Cricket: Day matches 11am; Evening 6:30pm
+  * Darts/Snooker: Evening 7pm-9pm
+  * NFL (converted to UK time): Sunday evenings 6pm, 9:25pm; Monday 1:20am
+  * NBA (converted to UK time): Late night 12:30am-3am
 - More events on weekends
-- Distribute events across all channels
+- Vary the channels appropriately
 
-Return ONLY a JSON array with no additional text.
+Return ONLY a JSON array of events with no additional text.
 
 Current UK date/time: ${ukNow.toISOString()}
 End date: ${fourWeeksFromNow.toISOString()}
@@ -136,45 +141,45 @@ Example format:
   }
 ]`;
 
-    const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY');
+    const groqApiKey = Deno.env.get('GROQ_API_KEY');
 
-    if (!anthropicApiKey) {
-      throw new Error('No API key configured. Please set ANTHROPIC_API_KEY environment variable.');
+    if (!groqApiKey) {
+      throw new Error('No API key configured. Please set GROQ_API_KEY environment variable.');
     }
 
-    console.log('Using Claude API for event generation');
+    console.log('Using Groq API for event generation');
 
-    const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
+    const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': anthropicApiKey,
-        'anthropic-version': '2023-06-01',
+        'Authorization': `Bearer ${groqApiKey}`,
       },
       body: JSON.stringify({
-        model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 8192,
+        model: 'llama-3.3-70b-versatile',
         messages: [{
           role: 'user',
           content: prompt,
         }],
+        temperature: 0.7,
+        max_tokens: 8192,
       }),
     });
 
-    if (!anthropicResponse.ok) {
-      const errorText = await anthropicResponse.text();
-      throw new Error(`Claude API error: ${anthropicResponse.statusText} - ${errorText}`);
+    if (!groqResponse.ok) {
+      const errorText = await groqResponse.text();
+      throw new Error(`Groq API error: ${groqResponse.statusText} - ${errorText}`);
     }
 
-    const anthropicData = await anthropicResponse.json();
-    const content = anthropicData.content[0].text;
+    const groqData = await groqResponse.json();
+    const content = groqData.choices[0].message.content;
 
     const jsonMatch = content.match(/\[[\s\S]*\]/);
     let events = [];
     if (jsonMatch) {
       events = JSON.parse(jsonMatch[0]);
     } else {
-      throw new Error('Failed to parse events from Claude API response');
+      throw new Error('Failed to parse events from Groq API response');
     }
 
     if (events.length === 0) {
