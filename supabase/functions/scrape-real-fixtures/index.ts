@@ -113,9 +113,13 @@ async function scrapeTheSportsDB(sport: string, league: string): Promise<SportsE
         const fourWeeksFromNow = new Date(now.getTime() + 28 * 24 * 60 * 60 * 1000);
 
         if (eventDate >= now && eventDate <= fourWeeksFromNow) {
+          const sportType = event.strSport === 'Soccer' ? 'Football' :
+                           event.strSport === 'Rugby' ? 'Rugby' :
+                           event.strSport;
+
           events.push({
             title: `${event.strHomeTeam} vs ${event.strAwayTeam}`,
-            sport_type: sport,
+            sport_type: sportType,
             league: event.strLeague,
             home_team: event.strHomeTeam,
             away_team: event.strAwayTeam,
@@ -225,15 +229,13 @@ Deno.serve(async (req: Request) => {
       allEvents.push(...apiFootballEvents);
     }
 
-    console.log('Scraping TheSportsDB for Premier League...');
+    console.log('Note: TheSportsDB may have incorrect league IDs, scraping available data...');
     const plEvents = await scrapeTheSportsDB('Football', 'Premier League');
     allEvents.push(...plEvents);
 
-    console.log('Scraping TheSportsDB for Champions League...');
     const clEvents = await scrapeTheSportsDB('Football', 'Champions League');
     allEvents.push(...clEvents);
 
-    console.log('Scraping TheSportsDB for Rugby Premiership...');
     const rugbyEvents = await scrapeTheSportsDB('Rugby', 'Rugby Premiership');
     allEvents.push(...rugbyEvents);
 
