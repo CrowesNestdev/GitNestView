@@ -22,10 +22,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Calendar, Plus, Loader2, Edit, Trash2, MapPin } from "lucide-react";
+import { Calendar, Plus, Loader2, Edit, Trash2, MapPin, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { format, parseISO, startOfMonth, endOfMonth, addMonths, subMonths } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
+import { supabase } from "@/lib/supabase";
 
 export default function SportsCalendar() {
   const { profile } = useAuth();
@@ -36,6 +37,7 @@ export default function SportsCalendar() {
   const [showAssignDialog, setShowAssignDialog] = useState(false);
   const [assigningEvent, setAssigningEvent] = useState(null);
   const [selectedSites, setSelectedSites] = useState([]);
+  const [isAutoPopulating, setIsAutoPopulating] = useState(false);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -212,6 +214,52 @@ export default function SportsCalendar() {
   const nextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
   const prevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
 
+  const handleAutoPopulate = async () => {
+    if (channels.length === 0) {
+      toast.error("Please add channels first before auto-populating events");
+      return;
+    }
+
+    setIsAutoPopulating(true);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/scrape-sports-events`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            company_id: companyId,
+            channels: channels,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to populate events');
+      }
+
+      toast.success(`Successfully added ${result.count} events!`);
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+    } catch (error) {
+      console.error('Auto-populate error:', error);
+      toast.error('Failed to auto-populate events: ' + error.message);
+    } finally {
+      setIsAutoPopulating(false);
+    }
+  };
+
   if (!companyId || isLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -228,13 +276,33 @@ export default function SportsCalendar() {
             <h1 className="text-3xl font-bold text-gray-900">Sports Calendar</h1>
             <p className="text-gray-500 mt-2">Manage and schedule sporting events</p>
           </div>
-          <Button
-            onClick={() => setShowAddDialog(true)}
-            className="bg-green-600 hover:bg-green-700"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Add Event
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              onClick={handleAutoPopulate}
+              disabled={isAutoPopulating || channels.length === 0}
+              variant="outline"
+              className="border-green-600 text-green-600 hover:bg-green-50"
+            >
+              {isAutoPopulating ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Auto-Populate 4 Weeks
+                </>
+              )}
+            </Button>
+            <Button
+              onClick={() => setShowAddDialog(true)}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Event
+            </Button>
+          </div>
         </div>
 
         <Card>
