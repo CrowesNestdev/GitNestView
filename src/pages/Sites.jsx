@@ -29,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { MapPin, Plus, Loader2, Edit, Trash2 } from "lucide-react";
+import { MapPin, Plus, Loader2, Edit, Trash2, ExternalLink, Copy } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Sites() {
@@ -241,6 +241,9 @@ export default function Sites() {
                           </div>
                           <div>
                             <p className="font-semibold text-gray-900">{site.name}</p>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              Display: /SiteDisplay?site={site.id.substring(0, 8)}...
+                            </p>
                           </div>
                         </div>
                       </TableCell>
@@ -258,9 +261,33 @@ export default function Sites() {
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           <Button
+                            onClick={() => {
+                              const displayUrl = `${window.location.origin}/SiteDisplay?site=${site.id}`;
+                              window.open(displayUrl, '_blank');
+                            }}
+                            variant="outline"
+                            size="sm"
+                            title="Open Display URL"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            onClick={() => {
+                              const displayUrl = `${window.location.origin}/SiteDisplay?site=${site.id}`;
+                              navigator.clipboard.writeText(displayUrl);
+                              toast.success("Display URL copied to clipboard");
+                            }}
+                            variant="outline"
+                            size="sm"
+                            title="Copy Display URL"
+                          >
+                            <Copy className="w-4 h-4" />
+                          </Button>
+                          <Button
                             onClick={() => handleEdit(site)}
                             variant="outline"
                             size="sm"
+                            title="Edit Site"
                           >
                             <Edit className="w-4 h-4" />
                           </Button>
@@ -269,6 +296,7 @@ export default function Sites() {
                             variant="outline"
                             size="sm"
                             className="text-red-600 hover:text-red-700"
+                            title="Delete Site"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
