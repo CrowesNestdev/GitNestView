@@ -61,50 +61,51 @@ Deno.serve(async (req: Request) => {
       c.name.toLowerCase().includes('tnt')
     ) ? '' : '\n- Other relevant sports broadcast websites';
 
-    const prompt = `Find upcoming sports fixtures that will be broadcast on UK TV channels: ${channelNames}
+    const prompt = `Identify upcoming sports fixtures scheduled to be broadcast on UK TV channels within the next 4 weeks. Use only reliable and official sources for verification, such as:
 
-Search for fixtures in the next 4 weeks from today.
-
-WHERE TO SEARCH:
-- Official TV channel schedules (Sky Sports, BT Sport, TNT Sports websites)
+- Official TV channel schedules (Sky Sports, BT Sport, TNT Sports)
 - Premier League official fixtures page
 - BBC Sport fixtures
 - Official league/competition websites
-- TV guide websites (RadioTimes, TVGuide)${additionalWebsites}
+- TV guide websites (RadioTimes, TVGuide)
 
-IMPORTANT RULES:
-✓ Only include matches/events you can verify from reliable sources
-✓ Include the exact date and time if found
-✓ If a fixture is announced but time is TBC, skip it
-✓ Focus on major events and confirmed broadcasts
-✗ Don't invent events that don't exist
-✗ Don't guess at dates or times
+Check the following channels: ${channelNames}${additionalWebsites}
 
-SPORTS TO INCLUDE:
+Important guidelines:
+
+1. Only include fixtures and events that are confirmed and verified through reputable sources.
+2. Provide exact date and time (YYYY-MM-DDTHH:MM:SS in UK time) when available.
+3. Skip fixtures with time To Be Confirmed (TBC).
+4. Focus on major, high-profile events and confirmed broadcasts.
+5. Do not invent events or guess dates/times lacking confirmation.
+
+Sports to include:
+
 - Football (Premier League, Champions League, FA Cup, etc.)
 - Rugby (Premiership, Six Nations, etc.)
 - Cricket (international matches, The Hundred, etc.)
-- Tennis (tournaments, Grand Slams)
+- Tennis (Grand Slams, ATP/WTA tournaments)
 - Formula 1 (race weekends)
-- Boxing (major fights)
-- Golf (tournaments)
+- Boxing (significant fights)
+- Golf (major tournaments)
 
-For each event provide:
-- title: Title with teams/competitors
+For each verified event, provide:
+
+- title: Event title (e.g., team names, competitors)
 - sport_type: Sport type
 - league: League/competition name
 - home_team: Home team (if applicable)
 - away_team: Away team (if applicable)
-- start_time: Start date and time (YYYY-MM-DDTHH:MM:SS format in UK time, ISO 8601)
+- start_time: Start date and time (ISO 8601 format in UK time: YYYY-MM-DDTHH:MM:SS.000Z)
 - channel_name: Channel name
-- description: Brief description (optional)
+- description: Brief description if relevant
 
-Return as many REAL events as you can find. It's okay to return 0 events if you can't find any confirmed broadcasts.
+Return as many confirmed events as possible. If no confirmed broadcasts are found, return an empty list.
 
 Current UK date/time: ${ukNow.toISOString()}
 Search until: ${fourWeeksFromNow.toISOString()}
 
-Return ONLY a JSON array of events with no additional text.
+Return ONLY a valid JSON array with no additional text or markdown formatting.
 
 Example format:
 [
