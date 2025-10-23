@@ -382,3 +382,54 @@ export const brandSchemesService = {
     if (error) throw error;
   },
 };
+
+export const siteBrandSchemesService = {
+  async getBySite(siteId) {
+    const { data, error } = await supabase
+      .from('site_brand_schemes')
+      .select('*, brand_schemes(*)')
+      .eq('site_id', siteId)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async assignSchemeToSite(siteId, brandSchemeId) {
+    const { data: existing } = await supabase
+      .from('site_brand_schemes')
+      .select('id')
+      .eq('site_id', siteId)
+      .maybeSingle();
+
+    if (existing) {
+      const { data, error } = await supabase
+        .from('site_brand_schemes')
+        .update({ brand_scheme_id: brandSchemeId })
+        .eq('site_id', siteId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } else {
+      const { data, error } = await supabase
+        .from('site_brand_schemes')
+        .insert([{ site_id: siteId, brand_scheme_id: brandSchemeId }])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    }
+  },
+
+  async removeSchemeFromSite(siteId) {
+    const { error } = await supabase
+      .from('site_brand_schemes')
+      .delete()
+      .eq('site_id', siteId);
+
+    if (error) throw error;
+  },
+};

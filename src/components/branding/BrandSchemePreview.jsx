@@ -1,7 +1,7 @@
 import React from "react";
 import { Calendar, Clock, Tv } from "lucide-react";
 
-export default function BrandSchemePreview({ scheme }) {
+export function BrandSchemePreview({ scheme }) {
   const demoEvents = [
     {
       time: "12:30",

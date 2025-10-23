@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { sitesService, companiesService } from "@/services/database";
+import { sitesService, companiesService, brandSchemesService, siteBrandSchemesService } from "@/services/database";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { MapPin, Plus, Loader2, Edit, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -33,7 +40,8 @@ export default function Sites() {
   const [formData, setFormData] = useState({
     name: "",
     location: "",
-    timezone: "UTC"
+    timezone: "UTC",
+    brandSchemeId: ""
   });
 
   const queryClient = useQueryClient();
@@ -53,6 +61,12 @@ export default function Sites() {
   const { data: company } = useQuery({
     queryKey: ['company', companyId],
     queryFn: () => companiesService.getById(companyId),
+    enabled: !!companyId,
+  });
+
+  const { data: brandSchemes = [] } = useQuery({
+    queryKey: ['brand-schemes', companyId],
+    queryFn: () => brandSchemesService.getByCompany(companyId),
     enabled: !!companyId,
   });
 
@@ -97,21 +111,26 @@ export default function Sites() {
     setFormData({
       name: "",
       location: "",
-      timezone: "UTC"
+      timezone: "UTC",
+      brandSchemeId: ""
     });
   };
 
-  const handleEdit = (site) => {
+  const handleEdit = async (site) => {
     setEditingSite(site);
+
+    const siteBrandScheme = await siteBrandSchemesService.getBySite(site.id).catch(() => null);
+
     setFormData({
       name: site.name,
       location: site.location || "",
-      timezone: site.timezone || "UTC"
+      timezone: site.timezone || "UTC",
+      brandSchemeId: siteBrandScheme?.brand_scheme_id || ""
     });
     setShowAddDialog(true);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const canAddMore = !company || sites.length < company.max_sites;
 
     if (!editingSite && !canAddMore) {
@@ -119,14 +138,35 @@ export default function Sites() {
       return;
     }
 
-    if (editingSite) {
-      updateSiteMutation.mutate({ id: editingSite.id, data: formData });
-    } else {
-      createSiteMutation.mutate({
-        ...formData,
-        company_id: companyId,
-        is_active: true
-      });
+    try {
+      const siteData = {
+        name: formData.name,
+        location: formData.location,
+        timezone: formData.timezone
+      };
+
+      let siteId;
+      if (editingSite) {
+        await updateSiteMutation.mutateAsync({ id: editingSite.id, data: siteData });
+        siteId = editingSite.id;
+      } else {
+        const newSite = await createSiteMutation.mutateAsync({
+          ...siteData,
+          company_id: companyId,
+          is_active: true
+        });
+        siteId = newSite.id;
+      }
+
+      if (formData.brandSchemeId) {
+        await siteBrandSchemesService.assignSchemeToSite(siteId, formData.brandSchemeId);
+      } else if (editingSite) {
+        await siteBrandSchemesService.removeSchemeFromSite(siteId);
+      }
+
+      closeDialog();
+    } catch (error) {
+      console.error('Error saving site:', error);
     }
   };
 
@@ -276,6 +316,28 @@ export default function Sites() {
                   value={formData.timezone}
                   onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="brandScheme">Brand Scheme (Optional)</Label>
+                <Select
+                  value={formData.brandSchemeId}
+                  onValueChange={(value) => setFormData({ ...formData, brandSchemeId: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a brand scheme" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">None</SelectItem>
+                    {brandSchemes.map((scheme) => (
+                      <SelectItem key={scheme.id} value={scheme.id}>
+                        {scheme.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-sm text-gray-500">
+                  Apply custom branding and colors to this site's display
+                </p>
               </div>
             </div>
             <DialogFooter>
