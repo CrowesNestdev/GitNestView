@@ -141,45 +141,45 @@ Example format:
   }
 ]`;
 
-    const groqApiKey = Deno.env.get('GROQ_API_KEY');
+    const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY');
 
-    if (!groqApiKey) {
-      throw new Error('No API key configured. Please set GROQ_API_KEY environment variable.');
+    if (!anthropicApiKey) {
+      throw new Error('No API key configured. Please set ANTHROPIC_API_KEY environment variable.');
     }
 
-    console.log('Using Groq API for event generation');
+    console.log('Using Claude API for event generation');
 
-    const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${groqApiKey}`,
+        'x-api-key': anthropicApiKey,
+        'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 8192,
         messages: [{
           role: 'user',
           content: prompt,
         }],
-        temperature: 0.7,
-        max_tokens: 8192,
       }),
     });
 
-    if (!groqResponse.ok) {
-      const errorText = await groqResponse.text();
-      throw new Error(`Groq API error: ${groqResponse.statusText} - ${errorText}`);
+    if (!anthropicResponse.ok) {
+      const errorText = await anthropicResponse.text();
+      throw new Error(`Claude API error: ${anthropicResponse.statusText} - ${errorText}`);
     }
 
-    const groqData = await groqResponse.json();
-    const content = groqData.choices[0].message.content;
+    const anthropicData = await anthropicResponse.json();
+    const content = anthropicData.content[0].text;
 
     const jsonMatch = content.match(/\[[\s\S]*\]/);
     let events = [];
     if (jsonMatch) {
       events = JSON.parse(jsonMatch[0]);
     } else {
-      throw new Error('Failed to parse events from Groq API response');
+      throw new Error('Failed to parse events from Claude API response');
     }
 
     if (events.length === 0) {
