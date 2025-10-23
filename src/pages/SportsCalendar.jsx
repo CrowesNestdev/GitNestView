@@ -240,7 +240,7 @@ export default function SportsCalendar() {
       }
 
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/scrape-sports-events`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/scrape-real-fixtures`,
         {
           method: 'POST',
           headers: {
