@@ -55,13 +55,11 @@ Deno.serve(async (req: Request) => {
 
     const channelNames = channels.map(c => c.name).join(', ');
 
-    const prompt = `Generate a realistic and diverse international sports schedule for the next 4 weeks for these TV channels: ${channelNames}.
+    const prompt = `Generate 80-120 sports events for the next 4 weeks based on these TV channels: ${channelNames}.
 
-IMPORTANT: All times must be in UK timezone (GMT/BST). Use proper UK scheduling patterns.
+Create a diverse schedule with UK, European, and International sports:
 
-Include a DIVERSE MIX of UK, European, and International sports:
-
-UK & European Sports (PRIORITY):
+UK & European Sports (60% of events):
 - Football: Premier League, Championship, EFL Cup, FA Cup, Champions League, Europa League, La Liga, Serie A, Bundesliga, Ligue 1
 - Rugby Union: Six Nations, Premiership Rugby, European Champions Cup, United Rugby Championship
 - Rugby League: Super League, Challenge Cup, NRL
@@ -74,39 +72,36 @@ UK & European Sports (PRIORITY):
 - Formula 1: Grand Prix races
 - Tennis: Wimbledon, ATP/WTA Tours
 
-International Sports:
+International Sports (40% of events):
 - Basketball: NBA, EuroLeague
 - American Football: NFL
 - Ice Hockey: NHL
 - Baseball: MLB
 - UFC/MMA events
 
-For each event, provide:
-- title: Full descriptive title
-- sport_type: Type of sport (e.g., Football, Rugby Union, Cricket, Darts, Snooker, etc.)
+For each event provide:
+- title: Full descriptive title (e.g., "Premier League: Arsenal vs Liverpool")
+- sport_type: Sport name (e.g., "Football", "Rugby Union", "Cricket", "Darts")
 - league: League/competition name
-- home_team: Home team name (if applicable)
-- away_team: Away team name (if applicable)
+- home_team: Home team (if applicable)
+- away_team: Away team (if applicable)
 - start_time: ISO datetime string in UK timezone
-- channel_name: Which channel will broadcast it
-- description: Brief event description (optional)
+- channel_name: One of these channels: ${channelNames}
+- description: Brief description (optional)
 
-IMPORTANT:
-- Generate 80-120 events total
-- 60% should be UK/European sports
-- 40% international sports
-- ALL TIMES IN UK TIMEZONE (GMT/BST)
-- Realistic UK scheduling:
+Requirements:
+- ALL times in UK timezone (GMT/BST)
+- Use realistic UK TV scheduling patterns:
   * Football: Saturdays 12:30pm, 3pm, 5:30pm; Sundays 2pm, 4:30pm; Midweek 7:45pm, 8pm
   * Rugby: Saturdays 3pm, 5:30pm; Fridays 7:45pm
-  * Cricket: Day matches 11am; Evening 6:30pm
-  * Darts/Snooker: Evening 7pm-9pm
-  * NFL (converted to UK time): Sunday evenings 6pm, 9:25pm; Monday 1:20am
-  * NBA (converted to UK time): Late night 12:30am-3am
+  * Cricket: 11am or 6:30pm
+  * Darts/Snooker: 7pm-9pm
+  * NFL: Sunday 6pm, 9:25pm; Monday 1:20am (UK time)
+  * NBA: 12:30am-3am (UK time)
 - More events on weekends
-- Vary the channels appropriately
+- Distribute events across all channels
 
-Return ONLY a JSON array of events with no additional text.
+Return ONLY a JSON array with no additional text.
 
 Current UK date/time: ${ukNow.toISOString()}
 End date: ${fourWeeksFromNow.toISOString()}
