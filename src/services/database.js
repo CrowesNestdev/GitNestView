@@ -216,14 +216,7 @@ export const sportsEventsService = {
   async getByCompany(companyId, startDate, endDate) {
     let query = supabase
       .from('sports_events')
-      .select(`
-        *,
-        channels(*),
-        event_channels(
-          channel_id,
-          channels(*)
-        )
-      `)
+      .select('*, channels(*)')
       .eq('company_id', companyId);
 
     if (startDate) {
@@ -242,14 +235,7 @@ export const sportsEventsService = {
   async getById(id) {
     const { data, error } = await supabase
       .from('sports_events')
-      .select(`
-        *,
-        channels(*),
-        event_channels(
-          channel_id,
-          channels(*)
-        )
-      `)
+      .select('*, channels(*)')
       .eq('id', id)
       .maybeSingle();
 

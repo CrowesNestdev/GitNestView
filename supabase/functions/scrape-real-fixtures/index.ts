@@ -113,14 +113,9 @@ async function scrapeTheSportsDB(sport: string, league: string): Promise<SportsE
         const fourWeeksFromNow = new Date(now.getTime() + 28 * 24 * 60 * 60 * 1000);
 
         if (eventDate >= now && eventDate <= fourWeeksFromNow) {
-          let detectedSport = event.strSport || sport;
-          if (detectedSport === 'Soccer') {
-            detectedSport = 'Football';
-          }
-
           events.push({
             title: `${event.strHomeTeam} vs ${event.strAwayTeam}`,
-            sport_type: detectedSport,
+            sport_type: sport,
             league: event.strLeague,
             home_team: event.strHomeTeam,
             away_team: event.strAwayTeam,
@@ -131,8 +126,6 @@ async function scrapeTheSportsDB(sport: string, league: string): Promise<SportsE
         }
       });
     }
-
-    console.log(`TheSportsDB returned ${events.length} events for ${league}`);
   } catch (error) {
     console.error(`Error scraping TheSportsDB for ${league}:`, error);
   }
@@ -229,65 +222,53 @@ Deno.serve(async (req: Request) => {
     if (apiFootballKey) {
       console.log('Scraping API-Football...');
       const apiFootballEvents = await scrapeAPIFootball(apiFootballKey);
-      console.log(`API-Football returned ${apiFootballEvents.length} events`);
       allEvents.push(...apiFootballEvents);
     }
 
     console.log('Scraping TheSportsDB for Premier League...');
     const plEvents = await scrapeTheSportsDB('Football', 'Premier League');
-    console.log(`Premier League events: ${plEvents.length}`);
     allEvents.push(...plEvents);
 
     console.log('Scraping TheSportsDB for Champions League...');
     const clEvents = await scrapeTheSportsDB('Football', 'Champions League');
-    console.log(`Champions League events: ${clEvents.length}`);
     allEvents.push(...clEvents);
 
     console.log('Scraping TheSportsDB for Rugby Premiership...');
     const rugbyEvents = await scrapeTheSportsDB('Rugby', 'Rugby Premiership');
-    console.log(`Rugby events: ${rugbyEvents.length}`);
     allEvents.push(...rugbyEvents);
-
-    console.log(`Total events before deduplication: ${allEvents.length}`);
 
     if (allEvents.length === 0) {
       throw new Error('No events found from any source');
     }
 
-    const eventChannelMap = new Map<string, { event: SportsEvent; channels: Set<string> }>();
+    const uniqueEvents = Array.from(
+      new Map(allEvents.map(event => [
+        `${event.home_team}-${event.away_team}-${event.start_time}`,
+        event
+      ])).values()
+    );
 
-    allEvents.forEach(event => {
-      const key = `${event.home_team}-${event.away_team}-${event.start_time}`;
+    console.log(`Found ${uniqueEvents.length} unique events`);
 
-      if (!eventChannelMap.has(key)) {
-        eventChannelMap.set(key, {
-          event,
-          channels: new Set()
-        });
-      }
-
+    const eventsToInsert = uniqueEvents.map((event) => {
       const channel = channels.find(
         c => c.name.toLowerCase().includes('sky') || c.name.toLowerCase().includes('sport')
       ) || channels[0];
 
-      eventChannelMap.get(key)!.channels.add(channel.id);
+      return {
+        company_id,
+        title: event.title,
+        sport_type: event.sport_type,
+        league: event.league,
+        home_team: event.home_team,
+        away_team: event.away_team,
+        start_time: event.start_time,
+        end_time: null,
+        channel_id: channel.id,
+        description: event.description || null,
+        is_featured: false,
+      };
     });
-
-    console.log(`Found ${eventChannelMap.size} unique events`);
-
-    const eventsToInsert = Array.from(eventChannelMap.values()).map(({ event }) => ({
-      company_id,
-      title: event.title,
-      sport_type: event.sport_type,
-      league: event.league,
-      home_team: event.home_team,
-      away_team: event.away_team,
-      start_time: event.start_time,
-      end_time: null,
-      channel_id: null,
-      description: event.description || null,
-      is_featured: false,
-    }));
 
     const { data: insertedEvents, error: insertError } = await supabase
       .from('sports_events')
@@ -296,25 +277,6 @@ Deno.serve(async (req: Request) => {
 
     if (insertError) {
       throw insertError;
-    }
-
-    const eventChannelInserts = [];
-    insertedEvents.forEach((insertedEvent, index) => {
-      const eventData = Array.from(eventChannelMap.values())[index];
-      eventData.channels.forEach(channelId => {
-        eventChannelInserts.push({
-          event_id: insertedEvent.id,
-          channel_id: channelId
-        });
-      });
-    });
-
-    const { error: channelInsertError } = await supabase
-      .from('event_channels')
-      .insert(eventChannelInserts);
-
-    if (channelInsertError) {
-      console.error('Error inserting event channels:', channelInsertError);
     }
 
     return new Response(

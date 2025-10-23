@@ -17,12 +17,6 @@ const sportColors = {
 };
 
 export default function EventCard({ event, channel, onAssign, onHide, assignedSites = [] }) {
-  const eventChannels = event.event_channels?.map(ec => ec.channels).filter(Boolean) || [];
-
-  const allChannels = eventChannels.length > 0
-    ? eventChannels
-    : (event.channels ? [event.channels] : (channel ? [channel] : []));
-
   return (
     <Card className={`p-5 hover:shadow-lg transition-all duration-300 ${event.is_hidden ? 'opacity-60 border-dashed' : ''}`}>
       <div className="space-y-4">
@@ -63,18 +57,10 @@ export default function EventCard({ event, channel, onAssign, onHide, assignedSi
               {event.end_time && ` - ${format(new Date(event.end_time), "h:mm a")}`}
             </span>
           </div>
-          {allChannels.length > 0 && (
-            <div className="flex items-start gap-2 text-gray-600">
-              <Tv className="w-4 h-4 mt-0.5" />
-              <div className="flex flex-wrap gap-1">
-                {allChannels.map((ch, index) => (
-                  <Badge key={index} variant="secondary" className="text-xs">
-                    {ch.name}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          )}
+          <div className="flex items-center gap-2 text-gray-600">
+            <Tv className="w-4 h-4" />
+            <span className="font-medium">{channel?.name || 'Unknown Channel'}</span>
+          </div>
         </div>
 
         {event.description && (
