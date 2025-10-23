@@ -25,6 +25,7 @@ import {
 import { Calendar, Plus, Loader2, Sparkles, Filter, RefreshCw, Eye, EyeOff, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/lib/supabase";
 
@@ -397,15 +398,15 @@ export default function SportsCalendar() {
                     <div className="space-y-2 text-sm text-gray-600 mb-4">
                       <div className="flex items-center gap-2">
                         <Calendar className="w-4 h-4" />
-                        <span>{format(parseISO(event.start_time), "EEEE, MMMM d, yyyy")}</span>
+                        <span>{formatInTimeZone(parseISO(event.start_time), "Europe/London", "EEEE, MMMM d, yyyy")}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                         <span>
-                          {format(parseISO(event.start_time), "h:mm a")}
-                          {event.end_time && ` - ${format(parseISO(event.end_time), "h:mm a")}`}
+                          {formatInTimeZone(parseISO(event.start_time), "Europe/London", "h:mm a")}
+                          {event.end_time && ` - ${formatInTimeZone(parseISO(event.end_time), "Europe/London", "h:mm a")}`}
                         </span>
                       </div>
                       {channel && (

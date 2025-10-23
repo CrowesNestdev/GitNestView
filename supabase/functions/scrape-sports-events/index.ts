@@ -50,11 +50,14 @@ Deno.serve(async (req: Request) => {
     }
 
     const now = new Date();
-    const fourWeeksFromNow = new Date(now.getTime() + 28 * 24 * 60 * 60 * 1000);
+    const ukNow = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/London' }));
+    const fourWeeksFromNow = new Date(ukNow.getTime() + 28 * 24 * 60 * 60 * 1000);
 
     const channelNames = channels.map(c => c.name).join(', ');
     
     const prompt = `Generate a realistic and diverse international sports schedule for the next 4 weeks for these TV channels: ${channelNames}.
+
+IMPORTANT: All times must be in UK timezone (GMT/BST). Use proper UK scheduling patterns.
 
 Include a DIVERSE MIX of UK, European, and International sports:
 
@@ -84,7 +87,7 @@ For each event, provide:
 - league: League/competition name
 - home_team: Home team name (if applicable)
 - away_team: Away team name (if applicable)
-- start_time: ISO datetime string
+- start_time: ISO datetime string in UK timezone
 - channel_name: Which channel will broadcast it
 - description: Brief event description (optional)
 
@@ -92,13 +95,20 @@ IMPORTANT:
 - Generate 80-120 events total
 - 60% should be UK/European sports
 - 40% international sports
-- Realistic scheduling: more events on weekends, evening prime time slots (7pm-10pm)
-- Match typical broadcast patterns for each sport
+- ALL TIMES IN UK TIMEZONE (GMT/BST)
+- Realistic UK scheduling: 
+  * Football: Saturdays 12:30pm, 3pm, 5:30pm; Sundays 2pm, 4:30pm; Midweek 7:45pm, 8pm
+  * Rugby: Saturdays 3pm, 5:30pm; Fridays 7:45pm
+  * Cricket: Day matches 11am; Evening 6:30pm
+  * Darts/Snooker: Evening 7pm-9pm
+  * NFL (converted to UK time): Sunday evenings 6pm, 9:25pm; Monday 1:20am
+  * NBA (converted to UK time): Late night 12:30am-3am
+- More events on weekends
 - Vary the channels appropriately
 
 Return ONLY a JSON array of events with no additional text.
 
-Current date: ${now.toISOString()}
+Current UK date/time: ${ukNow.toISOString()}
 End date: ${fourWeeksFromNow.toISOString()}
 
 Example format:
@@ -109,7 +119,7 @@ Example format:
     "league": "Premier League",
     "home_team": "Arsenal",
     "away_team": "Liverpool",
-    "start_time": "${new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString()}",
+    "start_time": "2025-10-25T15:00:00.000Z",
     "channel_name": "Sky Sports",
     "description": "Top of the table clash at the Emirates"
   },
@@ -119,14 +129,14 @@ Example format:
     "league": "Premiership Rugby",
     "home_team": "Leicester Tigers",
     "away_team": "Saracens",
-    "start_time": "${new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString()}",
+    "start_time": "2025-10-26T15:00:00.000Z",
     "channel_name": "BT Sport"
   },
   {
     "title": "PDC Premier League Darts: Night 5",
     "sport_type": "Darts",
     "league": "Premier League Darts",
-    "start_time": "${new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000).toISOString()}",
+    "start_time": "2025-10-27T19:00:00.000Z",
     "channel_name": "Sky Sports"
   }
 ]`;
@@ -165,7 +175,7 @@ Example format:
         events = JSON.parse(jsonMatch[0]);
       }
     } else {
-      events = generateMockEvents(channels, now, fourWeeksFromNow);
+      events = generateMockEvents(channels, ukNow, fourWeeksFromNow);
     }
 
     const eventsToInsert = events.map((event: any) => {
@@ -235,67 +245,120 @@ function generateMockEvents(channels: Channel[], startDate: Date, endDate: Date)
     { 
       type: 'Football', 
       leagues: ['Premier League', 'Championship', 'Champions League', 'La Liga', 'Serie A', 'Bundesliga'],
-      weight: 3
+      weight: 3,
+      times: {
+        saturday: ['12:30', '15:00', '17:30'],
+        sunday: ['14:00', '16:30'],
+        weekday: ['19:45', '20:00']
+      }
     },
     { 
       type: 'Rugby Union', 
       leagues: ['Premiership Rugby', 'Six Nations', 'European Champions Cup', 'United Rugby Championship'],
-      weight: 2
+      weight: 2,
+      times: {
+        saturday: ['15:00', '17:30'],
+        friday: ['19:45'],
+        sunday: ['15:00']
+      }
     },
     { 
       type: 'Rugby League', 
       leagues: ['Super League', 'NRL', 'Challenge Cup'],
-      weight: 1
+      weight: 1,
+      times: {
+        friday: ['19:45'],
+        saturday: ['15:00'],
+        sunday: ['15:00']
+      }
     },
     { 
       type: 'Cricket', 
       leagues: ['County Championship', 'The Hundred', 'T20 Blast', 'Test Match', 'ODI'],
-      weight: 2
+      weight: 2,
+      times: {
+        weekday: ['11:00', '18:30'],
+        weekend: ['11:00', '14:30']
+      }
     },
     { 
       type: 'Darts', 
       leagues: ['Premier League Darts', 'PDC World Championship', 'European Tour'],
-      weight: 1
+      weight: 1,
+      times: {
+        weekday: ['19:00', '20:00'],
+        weekend: ['19:00']
+      }
     },
     { 
       type: 'Snooker', 
       leagues: ['World Championship', 'UK Championship', 'Masters'],
-      weight: 1
+      weight: 1,
+      times: {
+        weekday: ['13:00', '19:00'],
+        weekend: ['13:00', '19:00']
+      }
     },
     { 
       type: 'Formula 1', 
       leagues: ['Formula 1 World Championship'],
-      weight: 1
+      weight: 1,
+      times: {
+        sunday: ['14:00', '15:00']
+      }
     },
     { 
       type: 'Tennis', 
       leagues: ['ATP Tour', 'WTA Tour', 'Grand Slam'],
-      weight: 1
+      weight: 1,
+      times: {
+        weekday: ['12:00', '18:00'],
+        weekend: ['13:00']
+      }
     },
     { 
       type: 'Boxing', 
       leagues: ['World Title Fight', 'British Title Fight', 'European Title Fight'],
-      weight: 1
+      weight: 1,
+      times: {
+        saturday: ['22:00'],
+        sunday: ['02:00']
+      }
     },
     { 
       type: 'Golf', 
       leagues: ['PGA Tour', 'European Tour', 'The Open'],
-      weight: 1
+      weight: 1,
+      times: {
+        weekend: ['13:00', '18:00']
+      }
     },
     { 
       type: 'Basketball', 
       leagues: ['NBA', 'EuroLeague'],
-      weight: 1
+      weight: 1,
+      times: {
+        weekday: ['00:30', '01:00', '03:00'],
+        weekend: ['20:00', '00:30']
+      }
     },
     { 
       type: 'American Football', 
       leagues: ['NFL'],
-      weight: 1
+      weight: 1,
+      times: {
+        sunday: ['18:00', '21:25'],
+        monday: ['01:20']
+      }
     },
     { 
       type: 'Ice Hockey', 
       leagues: ['NHL'],
-      weight: 1
+      weight: 1,
+      times: {
+        weekday: ['00:00', '02:00'],
+        weekend: ['23:00', '01:30']
+      }
     },
   ];
 
@@ -319,7 +382,12 @@ function generateMockEvents(channels: Channel[], startDate: Date, endDate: Date)
   let currentDate = new Date(startDate);
   
   while (currentDate < endDate) {
-    const isWeekend = currentDate.getDay() === 0 || currentDate.getDay() === 6;
+    const dayOfWeek = currentDate.getDay();
+    const isSaturday = dayOfWeek === 6;
+    const isSunday = dayOfWeek === 0;
+    const isFriday = dayOfWeek === 5;
+    const isMonday = dayOfWeek === 1;
+    const isWeekend = isSaturday || isSunday;
     const eventsPerDay = isWeekend ? 5 : 2;
     
     for (let i = 0; i < eventsPerDay; i++) {
@@ -327,9 +395,28 @@ function generateMockEvents(channels: Channel[], startDate: Date, endDate: Date)
       const league = sport.leagues[Math.floor(Math.random() * sport.leagues.length)];
       const channel = channels[Math.floor(Math.random() * channels.length)];
       
-      const hour = isWeekend ? 12 + Math.floor(Math.random() * 10) : 19 + Math.floor(Math.random() * 3);
+      let timeOptions = [];
+      if (isSaturday && sport.times.saturday) {
+        timeOptions = sport.times.saturday;
+      } else if (isSunday && sport.times.sunday) {
+        timeOptions = sport.times.sunday;
+      } else if (isFriday && sport.times.friday) {
+        timeOptions = sport.times.friday;
+      } else if (isMonday && sport.times.monday) {
+        timeOptions = sport.times.monday;
+      } else if (isWeekend && sport.times.weekend) {
+        timeOptions = sport.times.weekend;
+      } else if (!isWeekend && sport.times.weekday) {
+        timeOptions = sport.times.weekday;
+      } else {
+        timeOptions = ['19:00'];
+      }
+      
+      const selectedTime = timeOptions[Math.floor(Math.random() * timeOptions.length)];
+      const [hours, minutes] = selectedTime.split(':').map(Number);
+      
       const eventTime = new Date(currentDate);
-      eventTime.setHours(hour, 0, 0, 0);
+      eventTime.setHours(hours, minutes, 0, 0);
       
       let homeTeam = null;
       let awayTeam = null;
