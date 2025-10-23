@@ -41,7 +41,7 @@ export default function Sites() {
     name: "",
     location: "",
     timezone: "UTC",
-    brandSchemeId: ""
+    brandSchemeId: "none"
   });
 
   const queryClient = useQueryClient();
@@ -112,7 +112,7 @@ export default function Sites() {
       name: "",
       location: "",
       timezone: "UTC",
-      brandSchemeId: ""
+      brandSchemeId: "none"
     });
   };
 
@@ -125,7 +125,7 @@ export default function Sites() {
       name: site.name,
       location: site.location || "",
       timezone: site.timezone || "UTC",
-      brandSchemeId: siteBrandScheme?.brand_scheme_id || ""
+      brandSchemeId: siteBrandScheme?.brand_scheme_id || "none"
     });
     setShowAddDialog(true);
   };
@@ -158,7 +158,7 @@ export default function Sites() {
         siteId = newSite.id;
       }
 
-      if (formData.brandSchemeId) {
+      if (formData.brandSchemeId && formData.brandSchemeId !== "none") {
         await siteBrandSchemesService.assignSchemeToSite(siteId, formData.brandSchemeId);
       } else if (editingSite) {
         await siteBrandSchemesService.removeSchemeFromSite(siteId);
@@ -327,7 +327,7 @@ export default function Sites() {
                     <SelectValue placeholder="Select a brand scheme" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="none">None</SelectItem>
                     {brandSchemes.map((scheme) => (
                       <SelectItem key={scheme.id} value={scheme.id}>
                         {scheme.name}
