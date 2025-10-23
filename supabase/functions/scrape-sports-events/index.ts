@@ -54,20 +54,49 @@ Deno.serve(async (req: Request) => {
 
     const channelNames = channels.map(c => c.name).join(', ');
     
-    const prompt = `Generate a realistic sports schedule for the next 4 weeks for these TV channels: ${channelNames}.
+    const prompt = `Generate a realistic and diverse international sports schedule for the next 4 weeks for these TV channels: ${channelNames}.
 
-Include major sports like Football (Soccer), Basketball (NBA), American Football (NFL), Baseball (MLB), Ice Hockey (NHL), Rugby, Tennis, Golf, Boxing/MMA, Cricket, and others.
+Include a DIVERSE MIX of UK, European, and International sports:
+
+UK & European Sports (PRIORITY):
+- Football: Premier League, Championship, EFL Cup, FA Cup, Champions League, Europa League, La Liga, Serie A, Bundesliga, Ligue 1
+- Rugby Union: Six Nations, Premiership Rugby, European Champions Cup, United Rugby Championship
+- Rugby League: Super League, Challenge Cup, NRL
+- Cricket: County Championship, The Hundred, T20 Blast, Test Matches, ODI, IPL
+- Darts: PDC World Championship, Premier League Darts
+- Snooker: World Championship, UK Championship, Masters
+- Golf: The Open, European Tour, Ryder Cup
+- Boxing: British & European title fights
+- Horse Racing: Cheltenham, Royal Ascot, Grand National
+- Formula 1: Grand Prix races
+- Tennis: Wimbledon, ATP/WTA Tours
+
+International Sports:
+- Basketball: NBA, EuroLeague
+- American Football: NFL
+- Ice Hockey: NHL
+- Baseball: MLB
+- UFC/MMA events
 
 For each event, provide:
 - title: Full descriptive title
-- sport_type: Type of sport
+- sport_type: Type of sport (e.g., Football, Rugby Union, Cricket, Darts, Snooker, etc.)
 - league: League/competition name
 - home_team: Home team name (if applicable)
 - away_team: Away team name (if applicable)
 - start_time: ISO datetime string
 - channel_name: Which channel will broadcast it
+- description: Brief event description (optional)
 
-Return ONLY a JSON array of events with no additional text. Make it realistic with proper scheduling (weekends have more games, prime time slots, etc.).
+IMPORTANT:
+- Generate 80-120 events total
+- 60% should be UK/European sports
+- 40% international sports
+- Realistic scheduling: more events on weekends, evening prime time slots (7pm-10pm)
+- Match typical broadcast patterns for each sport
+- Vary the channels appropriately
+
+Return ONLY a JSON array of events with no additional text.
 
 Current date: ${now.toISOString()}
 End date: ${fourWeeksFromNow.toISOString()}
@@ -75,12 +104,29 @@ End date: ${fourWeeksFromNow.toISOString()}
 Example format:
 [
   {
-    "title": "Premier League: Manchester United vs Liverpool",
+    "title": "Premier League: Arsenal vs Liverpool",
     "sport_type": "Football",
     "league": "Premier League",
-    "home_team": "Manchester United",
+    "home_team": "Arsenal",
     "away_team": "Liverpool",
     "start_time": "${new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString()}",
+    "channel_name": "Sky Sports",
+    "description": "Top of the table clash at the Emirates"
+  },
+  {
+    "title": "Premiership Rugby: Leicester Tigers vs Saracens",
+    "sport_type": "Rugby Union",
+    "league": "Premiership Rugby",
+    "home_team": "Leicester Tigers",
+    "away_team": "Saracens",
+    "start_time": "${new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString()}",
+    "channel_name": "BT Sport"
+  },
+  {
+    "title": "PDC Premier League Darts: Night 5",
+    "sport_type": "Darts",
+    "league": "Premier League Darts",
+    "start_time": "${new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000).toISOString()}",
     "channel_name": "Sky Sports"
   }
 ]`;
@@ -99,7 +145,7 @@ Example format:
         },
         body: JSON.stringify({
           model: 'claude-3-5-sonnet-20241022',
-          max_tokens: 4096,
+          max_tokens: 8192,
           messages: [{
             role: 'user',
             content: prompt,
@@ -184,43 +230,129 @@ Example format:
 
 function generateMockEvents(channels: Channel[], startDate: Date, endDate: Date) {
   const events = [];
+  
   const sports = [
-    { type: 'Football', leagues: ['Premier League', 'La Liga', 'Serie A', 'Bundesliga'] },
-    { type: 'Basketball', leagues: ['NBA', 'EuroLeague'] },
-    { type: 'American Football', leagues: ['NFL'] },
-    { type: 'Ice Hockey', leagues: ['NHL'] },
-    { type: 'Tennis', leagues: ['ATP Tour', 'WTA Tour'] },
+    { 
+      type: 'Football', 
+      leagues: ['Premier League', 'Championship', 'Champions League', 'La Liga', 'Serie A', 'Bundesliga'],
+      weight: 3
+    },
+    { 
+      type: 'Rugby Union', 
+      leagues: ['Premiership Rugby', 'Six Nations', 'European Champions Cup', 'United Rugby Championship'],
+      weight: 2
+    },
+    { 
+      type: 'Rugby League', 
+      leagues: ['Super League', 'NRL', 'Challenge Cup'],
+      weight: 1
+    },
+    { 
+      type: 'Cricket', 
+      leagues: ['County Championship', 'The Hundred', 'T20 Blast', 'Test Match', 'ODI'],
+      weight: 2
+    },
+    { 
+      type: 'Darts', 
+      leagues: ['Premier League Darts', 'PDC World Championship', 'European Tour'],
+      weight: 1
+    },
+    { 
+      type: 'Snooker', 
+      leagues: ['World Championship', 'UK Championship', 'Masters'],
+      weight: 1
+    },
+    { 
+      type: 'Formula 1', 
+      leagues: ['Formula 1 World Championship'],
+      weight: 1
+    },
+    { 
+      type: 'Tennis', 
+      leagues: ['ATP Tour', 'WTA Tour', 'Grand Slam'],
+      weight: 1
+    },
+    { 
+      type: 'Boxing', 
+      leagues: ['World Title Fight', 'British Title Fight', 'European Title Fight'],
+      weight: 1
+    },
+    { 
+      type: 'Golf', 
+      leagues: ['PGA Tour', 'European Tour', 'The Open'],
+      weight: 1
+    },
+    { 
+      type: 'Basketball', 
+      leagues: ['NBA', 'EuroLeague'],
+      weight: 1
+    },
+    { 
+      type: 'American Football', 
+      leagues: ['NFL'],
+      weight: 1
+    },
+    { 
+      type: 'Ice Hockey', 
+      leagues: ['NHL'],
+      weight: 1
+    },
   ];
 
-  const teams = {
-    'Premier League': ['Arsenal', 'Chelsea', 'Liverpool', 'Manchester United', 'Manchester City', 'Tottenham'],
-    'NBA': ['Lakers', 'Warriors', 'Celtics', 'Heat', 'Bucks', 'Nets'],
+  const teams: Record<string, string[]> = {
+    'Premier League': ['Arsenal', 'Chelsea', 'Liverpool', 'Manchester United', 'Manchester City', 'Tottenham', 'Newcastle', 'Aston Villa'],
+    'Championship': ['Leeds United', 'Leicester City', 'Southampton', 'West Brom', 'Norwich', 'Sheffield United'],
+    'Premiership Rugby': ['Leicester Tigers', 'Saracens', 'Northampton Saints', 'Harlequins', 'Sale Sharks', 'Bath', 'Exeter Chiefs', 'Gloucester'],
+    'Super League': ['St Helens', 'Wigan Warriors', 'Leeds Rhinos', 'Warrington Wolves', 'Catalans Dragons', 'Hull FC'],
+    'County Championship': ['Yorkshire', 'Lancashire', 'Surrey', 'Middlesex', 'Hampshire', 'Warwickshire'],
+    'NBA': ['Lakers', 'Warriors', 'Celtics', 'Heat', 'Bucks', 'Nets', 'Suns', 'Mavericks'],
     'NFL': ['Patriots', 'Chiefs', 'Packers', '49ers', 'Cowboys', 'Steelers'],
   };
+
+  const weightedSports: any[] = [];
+  sports.forEach(sport => {
+    for (let i = 0; i < sport.weight; i++) {
+      weightedSports.push(sport);
+    }
+  });
 
   let currentDate = new Date(startDate);
   
   while (currentDate < endDate) {
-    const eventsPerDay = currentDate.getDay() === 0 || currentDate.getDay() === 6 ? 5 : 2;
+    const isWeekend = currentDate.getDay() === 0 || currentDate.getDay() === 6;
+    const eventsPerDay = isWeekend ? 5 : 2;
     
     for (let i = 0; i < eventsPerDay; i++) {
-      const sport = sports[Math.floor(Math.random() * sports.length)];
+      const sport = weightedSports[Math.floor(Math.random() * weightedSports.length)];
       const league = sport.leagues[Math.floor(Math.random() * sport.leagues.length)];
       const channel = channels[Math.floor(Math.random() * channels.length)];
       
-      const hour = 14 + Math.floor(Math.random() * 8);
+      const hour = isWeekend ? 12 + Math.floor(Math.random() * 10) : 19 + Math.floor(Math.random() * 3);
       const eventTime = new Date(currentDate);
       eventTime.setHours(hour, 0, 0, 0);
       
       let homeTeam = null;
       let awayTeam = null;
-      let title = `${league} Match`;
+      let title = `${league} Event`;
       
       if (teams[league]) {
         const teamList = teams[league];
         homeTeam = teamList[Math.floor(Math.random() * teamList.length)];
         awayTeam = teamList.filter(t => t !== homeTeam)[Math.floor(Math.random() * (teamList.length - 1))];
         title = `${league}: ${homeTeam} vs ${awayTeam}`;
+      } else if (sport.type === 'Darts') {
+        title = `${league}: Night ${Math.floor(Math.random() * 16) + 1}`;
+      } else if (sport.type === 'Snooker') {
+        title = `${league}: Quarter Final ${Math.floor(Math.random() * 4) + 1}`;
+      } else if (sport.type === 'Formula 1') {
+        const races = ['British GP', 'Monaco GP', 'Italian GP', 'Belgian GP', 'Spanish GP', 'Austrian GP'];
+        title = `Formula 1: ${races[Math.floor(Math.random() * races.length)]}`;
+      } else if (sport.type === 'Golf') {
+        title = `${league}: Round ${Math.floor(Math.random() * 4) + 1}`;
+      } else if (sport.type === 'Tennis') {
+        title = `${league}: ${['Quarter Final', 'Semi Final', 'Final'][Math.floor(Math.random() * 3)]}`;
+      } else if (sport.type === 'Boxing') {
+        title = `${league}: Heavyweight Championship`;
       }
       
       events.push({
