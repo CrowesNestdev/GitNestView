@@ -18,7 +18,10 @@ const sportColors = {
 
 export default function EventCard({ event, channel, onAssign, onHide, assignedSites = [] }) {
   const eventChannels = event.event_channels?.map(ec => ec.channels).filter(Boolean) || [];
-  const allChannels = eventChannels.length > 0 ? eventChannels : (channel ? [channel] : []);
+
+  const allChannels = eventChannels.length > 0
+    ? eventChannels
+    : (event.channels ? [event.channels] : (channel ? [channel] : []));
 
   return (
     <Card className={`p-5 hover:shadow-lg transition-all duration-300 ${event.is_hidden ? 'opacity-60 border-dashed' : ''}`}>
