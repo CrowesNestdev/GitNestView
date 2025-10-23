@@ -30,11 +30,12 @@ export const AuthProvider = ({ children }) => {
 
           if (currentSession?.user) {
             await loadProfile(currentSession.user.id);
+          } else {
+            setLoading(false);
           }
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
-      } finally {
         if (mounted) {
           setLoading(false);
         }
@@ -53,6 +54,7 @@ export const AuthProvider = ({ children }) => {
             await loadProfile(newSession.user.id);
           } else {
             setProfile(null);
+            setLoading(false);
           }
         }
       })();
@@ -72,10 +74,15 @@ export const AuthProvider = ({ children }) => {
         .eq('id', userId)
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error loading profile:', error);
+      }
+
       setProfile(data);
     } catch (error) {
       console.error('Error loading profile:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
