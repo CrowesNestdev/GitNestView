@@ -1,6 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from 'npm:@supabase/supabase-js@2.39.0';
-import { DOMParser } from 'npm:linkedom@0.18.4';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -30,108 +29,62 @@ interface SportsEvent {
   description?: string;
 }
 
-async function scrapeBBCSportFootball(): Promise<SportsEvent[]> {
+async function scrapeTheSportsDBTVSchedule(): Promise<SportsEvent[]> {
   const events: SportsEvent[] = [];
 
   try {
-    const response = await fetch('https://www.bbc.com/sport/football/scores-fixtures', {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
-    });
+    const today = new Date();
+    const daysToFetch = 28;
 
-    if (!response.ok) {
-      console.error('BBC Sport fetch failed:', response.status);
-      return events;
-    }
+    for (let i = 0; i < daysToFetch; i++) {
+      const date = new Date(today);
+      date.setDate(date.getDate() + i);
+      const dateStr = date.toISOString().split('T')[0];
 
-    const html = await response.text();
-    const doc = new DOMParser().parseFromString(html, 'text/html');
+      const url = `https://www.thesportsdb.com/api/v1/json/3/eventsday.php?d=${dateStr}&s=Soccer`;
 
-    const fixtures = doc.querySelectorAll('[data-testid*="fixture"]');
-
-    fixtures.forEach((fixture: any) => {
       try {
-        const homeTeam = fixture.querySelector('[data-testid*="home-team"]')?.textContent?.trim();
-        const awayTeam = fixture.querySelector('[data-testid*="away-team"]')?.textContent?.trim();
-        const dateElement = fixture.querySelector('[data-testid*="date"]');
-        const timeElement = fixture.querySelector('[data-testid*="time"]');
+        const response = await fetch(url);
 
-        if (homeTeam && awayTeam && dateElement) {
-          const dateStr = dateElement.textContent?.trim();
-          const timeStr = timeElement?.textContent?.trim() || '15:00';
+        if (!response.ok) {
+          console.error(`TheSportsDB fetch failed for ${dateStr}:`, response.status);
+          continue;
+        }
 
-          events.push({
-            title: `${homeTeam} vs ${awayTeam}`,
-            sport_type: 'Football',
-            league: 'Premier League',
-            home_team: homeTeam,
-            away_team: awayTeam,
-            start_time: new Date().toISOString(),
-            channel_name: 'Sky Sports',
-            description: 'Premier League fixture'
+        const data = await response.json();
+
+        if (data.events) {
+          data.events.forEach((event: any) => {
+            if (event.strCountry === 'United Kingdom' && event.strChannel) {
+              const eventDate = new Date(`${event.dateEvent}T${event.strTime || '15:00:00'}`);
+
+              const sportType = event.strSport === 'Soccer' ? 'Football' :
+                               event.strSport === 'Rugby' ? 'Rugby' :
+                               event.strSport;
+
+              events.push({
+                title: event.strEvent || `${event.strHomeTeam || 'TBD'} vs ${event.strAwayTeam || 'TBD'}`,
+                sport_type: sportType,
+                league: event.strLeague || 'Unknown League',
+                home_team: event.strHomeTeam || null,
+                away_team: event.strAwayTeam || null,
+                start_time: eventDate.toISOString(),
+                channel_name: event.strChannel,
+                description: event.strLeague
+              });
+            }
           });
         }
-      } catch (err) {
-        console.error('Error parsing fixture:', err);
+      } catch (dayError) {
+        console.error(`Error fetching events for ${dateStr}:`, dayError);
       }
-    });
-  } catch (error) {
-    console.error('Error scraping BBC Sport:', error);
-  }
 
-  return events;
-}
-
-async function scrapeTheSportsDB(sport: string, league: string): Promise<SportsEvent[]> {
-  const events: SportsEvent[] = [];
-
-  try {
-    const leagueIds: { [key: string]: string } = {
-      'Premier League': '4328',
-      'Champions League': '4480',
-      'Rugby Premiership': '4391',
-    };
-
-    const leagueId = leagueIds[league];
-    if (!leagueId) return events;
-
-    const url = `https://www.thesportsdb.com/api/v1/json/3/eventsnextleague.php?id=${leagueId}`;
-    const response = await fetch(url);
-
-    if (!response.ok) {
-      console.error('TheSportsDB fetch failed:', response.status);
-      return events;
-    }
-
-    const data = await response.json();
-
-    if (data.events) {
-      data.events.forEach((event: any) => {
-        const eventDate = new Date(`${event.dateEvent}T${event.strTime || '15:00:00'}`);
-        const now = new Date();
-        const fourWeeksFromNow = new Date(now.getTime() + 28 * 24 * 60 * 60 * 1000);
-
-        if (eventDate >= now && eventDate <= fourWeeksFromNow) {
-          const sportType = event.strSport === 'Soccer' ? 'Football' :
-                           event.strSport === 'Rugby' ? 'Rugby' :
-                           event.strSport;
-
-          events.push({
-            title: `${event.strHomeTeam} vs ${event.strAwayTeam}`,
-            sport_type: sportType,
-            league: event.strLeague,
-            home_team: event.strHomeTeam,
-            away_team: event.strAwayTeam,
-            start_time: eventDate.toISOString(),
-            channel_name: 'Sky Sports',
-            description: event.strLeague
-          });
-        }
-      });
+      if (i % 7 === 0 && i > 0) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
     }
   } catch (error) {
-    console.error(`Error scraping TheSportsDB for ${league}:`, error);
+    console.error('Error scraping TheSportsDB TV schedule:', error);
   }
 
   return events;
@@ -218,7 +171,7 @@ Deno.serve(async (req: Request) => {
       throw new Error('Missing required fields');
     }
 
-    console.log('Starting real fixture scraping...');
+    console.log('Starting real fixture scraping from TheSportsDB TV schedule...');
 
     const allEvents: SportsEvent[] = [];
 
@@ -229,15 +182,9 @@ Deno.serve(async (req: Request) => {
       allEvents.push(...apiFootballEvents);
     }
 
-    console.log('Note: TheSportsDB may have incorrect league IDs, scraping available data...');
-    const plEvents = await scrapeTheSportsDB('Football', 'Premier League');
-    allEvents.push(...plEvents);
-
-    const clEvents = await scrapeTheSportsDB('Football', 'Champions League');
-    allEvents.push(...clEvents);
-
-    const rugbyEvents = await scrapeTheSportsDB('Rugby', 'Rugby Premiership');
-    allEvents.push(...rugbyEvents);
+    console.log('Scraping TheSportsDB TV schedule (UK channels only)...');
+    const tvScheduleEvents = await scrapeTheSportsDBTVSchedule();
+    allEvents.push(...tvScheduleEvents);
 
     if (allEvents.length === 0) {
       throw new Error('No events found from any source');
@@ -253,9 +200,17 @@ Deno.serve(async (req: Request) => {
     console.log(`Found ${uniqueEvents.length} unique events`);
 
     const eventsToInsert = uniqueEvents.map((event) => {
-      const channel = channels.find(
-        c => c.name.toLowerCase().includes('sky') || c.name.toLowerCase().includes('sport')
-      ) || channels[0];
+      const channelName = event.channel_name.toLowerCase();
+
+      const channel = channels.find(c => {
+        const cName = c.name.toLowerCase();
+        return cName.includes(channelName) ||
+               channelName.includes(cName) ||
+               (channelName.includes('sky') && cName.includes('sky')) ||
+               (channelName.includes('bt') && cName.includes('bt')) ||
+               (channelName.includes('tnt') && cName.includes('tnt')) ||
+               (channelName.includes('bbc') && cName.includes('bbc'));
+      }) || channels[0];
 
       return {
         company_id,
@@ -296,7 +251,7 @@ Deno.serve(async (req: Request) => {
           message: 'All events already exist, no duplicates added',
           sources: {
             api_football: apiFootballKey ? 'used' : 'not configured',
-            thesportsdb: 'used'
+            thesportsdb_tv: 'used'
           }
         }),
         {
@@ -324,7 +279,7 @@ Deno.serve(async (req: Request) => {
         events: insertedEvents,
         sources: {
           api_football: apiFootballKey ? 'used' : 'not configured',
-          thesportsdb: 'used'
+          thesportsdb_tv: 'used'
         }
       }),
       {
