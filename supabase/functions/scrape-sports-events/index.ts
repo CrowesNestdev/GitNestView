@@ -1,5 +1,4 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.39.0';
-import { DOMParser } from 'npm:linkedom@0.16.6';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,13 +15,6 @@ interface Channel {
 interface RequestBody {
   company_id: string;
   channels: Channel[];
-}
-
-interface DataSource {
-  id: string;
-  url: string;
-  name: string;
-  is_active: boolean;
 }
 
 Deno.serve(async (req: Request) => {
@@ -57,74 +49,181 @@ Deno.serve(async (req: Request) => {
       throw new Error('Missing required fields');
     }
 
-    const { data: dataSources, error: sourcesError } = await supabase
-      .from('sports_data_sources')
-      .select('*')
-      .eq('company_id', company_id)
-      .eq('is_active', true);
-
-    if (sourcesError) {
-      throw new Error(`Failed to fetch data sources: ${sourcesError.message}`);
-    }
-
-    if (!dataSources || dataSources.length === 0) {
-      throw new Error('No active data sources found. Please add sports schedule websites in Data Sources.');
-    }
-
-    console.log(`Found ${dataSources.length} active data sources`);
-
-    const allEvents: any[] = [];
     const now = new Date();
+    const ukNow = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/London' }));
+    const fourWeeksFromNow = new Date(ukNow.getTime() + 28 * 24 * 60 * 60 * 1000);
 
-    for (const source of dataSources) {
-      try {
-        console.log(`Scraping ${source.name}: ${source.url}`);
+    const channelNames = channels.map(c => c.name).join(', ');
+    
+    const prompt = `Generate a realistic and diverse international sports schedule for the next 4 weeks for these TV channels: ${channelNames}.
 
-        const response = await fetch(source.url, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-          },
-        });
+IMPORTANT: All times must be in UK timezone (GMT/BST). Use proper UK scheduling patterns.
 
-        if (!response.ok) {
-          console.error(`Failed to fetch ${source.url}: ${response.statusText}`);
-          continue;
-        }
+Include a DIVERSE MIX of UK, European, and International sports:
 
-        const html = await response.text();
-        const events = await extractEventsFromHTML(html, source, channels);
+UK & European Sports (PRIORITY):
+- Football: Premier League, Championship, EFL Cup, FA Cup, Champions League, Europa League, La Liga, Serie A, Bundesliga, Ligue 1
+- Rugby Union: Six Nations, Premiership Rugby, European Champions Cup, United Rugby Championship
+- Rugby League: Super League, Challenge Cup, NRL
+- Cricket: County Championship, The Hundred, T20 Blast, Test Matches, ODI, IPL
+- Darts: PDC World Championship, Premier League Darts
+- Snooker: World Championship, UK Championship, Masters
+- Golf: The Open, European Tour, Ryder Cup
+- Boxing: British & European title fights
+- Horse Racing: Cheltenham, Royal Ascot, Grand National
+- Formula 1: Grand Prix races
+- Tennis: Wimbledon, ATP/WTA Tours
 
-        console.log(`Extracted ${events.length} events from ${source.name}`);
-        allEvents.push(...events);
+International Sports:
+- Basketball: NBA, EuroLeague
+- American Football: NFL
+- Ice Hockey: NHL
+- Baseball: MLB
+- UFC/MMA events
 
-        await supabase
-          .from('sports_data_sources')
-          .update({
-            last_scraped_at: new Date().toISOString(),
-            scrape_count: source.scrape_count + 1,
-          })
-          .eq('id', source.id);
+For each event, provide:
+- title: Full descriptive title
+- sport_type: Type of sport (e.g., Football, Rugby Union, Cricket, Darts, Snooker, etc.)
+- league: League/competition name
+- home_team: Home team name (if applicable)
+- away_team: Away team name (if applicable)
+- start_time: ISO datetime string in UK timezone
+- channel_name: Which channel will broadcast it
+- description: Brief event description (optional)
 
-      } catch (error) {
-        console.error(`Error scraping ${source.name}:`, error);
+IMPORTANT:
+- Generate 80-120 events total
+- 60% should be UK/European sports
+- 40% international sports
+- ALL TIMES IN UK TIMEZONE (GMT/BST)
+- Realistic UK scheduling: 
+  * Football: Saturdays 12:30pm, 3pm, 5:30pm; Sundays 2pm, 4:30pm; Midweek 7:45pm, 8pm
+  * Rugby: Saturdays 3pm, 5:30pm; Fridays 7:45pm
+  * Cricket: Day matches 11am; Evening 6:30pm
+  * Darts/Snooker: Evening 7pm-9pm
+  * NFL (converted to UK time): Sunday evenings 6pm, 9:25pm; Monday 1:20am
+  * NBA (converted to UK time): Late night 12:30am-3am
+- More events on weekends
+- Vary the channels appropriately
+
+Return ONLY a JSON array of events with no additional text.
+
+Current UK date/time: ${ukNow.toISOString()}
+End date: ${fourWeeksFromNow.toISOString()}
+
+Example format:
+[
+  {
+    "title": "Premier League: Arsenal vs Liverpool",
+    "sport_type": "Football",
+    "league": "Premier League",
+    "home_team": "Arsenal",
+    "away_team": "Liverpool",
+    "start_time": "2025-10-25T15:00:00.000Z",
+    "channel_name": "Sky Sports",
+    "description": "Top of the table clash at the Emirates"
+  },
+  {
+    "title": "Premiership Rugby: Leicester Tigers vs Saracens",
+    "sport_type": "Rugby Union",
+    "league": "Premiership Rugby",
+    "home_team": "Leicester Tigers",
+    "away_team": "Saracens",
+    "start_time": "2025-10-26T15:00:00.000Z",
+    "channel_name": "BT Sport"
+  },
+  {
+    "title": "PDC Premier League Darts: Night 5",
+    "sport_type": "Darts",
+    "league": "Premier League Darts",
+    "start_time": "2025-10-27T19:00:00.000Z",
+    "channel_name": "Sky Sports"
+  }
+]`;
+
+    const groqApiKey = Deno.env.get('GROQ_API_KEY');
+    const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY');
+    
+    let events = [];
+    
+    if (groqApiKey) {
+      console.log('Using Groq API for event generation');
+      
+      const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${groqApiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: [{
+            role: 'user',
+            content: prompt,
+          }],
+          temperature: 0.7,
+          max_tokens: 8192,
+        }),
+      });
+
+      if (!groqResponse.ok) {
+        const errorText = await groqResponse.text();
+        throw new Error(`Groq API error: ${groqResponse.statusText} - ${errorText}`);
       }
+
+      const groqData = await groqResponse.json();
+      const content = groqData.choices[0].message.content;
+      
+      const jsonMatch = content.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        events = JSON.parse(jsonMatch[0]);
+      }
+    } else if (anthropicApiKey) {
+      console.log('Using Anthropic API for event generation');
+      
+      const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': anthropicApiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-3-5-sonnet-20241022',
+          max_tokens: 8192,
+          messages: [{
+            role: 'user',
+            content: prompt,
+          }],
+        }),
+      });
+
+      if (!anthropicResponse.ok) {
+        throw new Error(`Anthropic API error: ${anthropicResponse.statusText}`);
+      }
+
+      const anthropicData = await anthropicResponse.json();
+      const content = anthropicData.content[0].text;
+      
+      const jsonMatch = content.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        events = JSON.parse(jsonMatch[0]);
+      }
+    } else {
+      console.log('No API key found, using mock data generator');
+      events = generateMockEvents(channels, ukNow, fourWeeksFromNow);
     }
 
-    if (allEvents.length === 0) {
-      throw new Error('No events could be extracted from the data sources. Please check the URLs are valid sports schedule pages.');
-    }
-
-    const eventsToInsert = allEvents.map((event: any) => {
+    const eventsToInsert = events.map((event: any) => {
       const channel = channels.find(
-        c => c.name.toLowerCase().includes(event.channel_name.toLowerCase()) ||
-            event.channel_name.toLowerCase().includes(c.name.toLowerCase())
+        c => c.name.toLowerCase() === event.channel_name.toLowerCase()
       ) || channels[0];
 
       return {
         company_id,
         title: event.title,
-        sport_type: event.sport_type || 'Sports',
-        league: event.league || '',
+        sport_type: event.sport_type,
+        league: event.league,
         home_team: event.home_team || null,
         away_team: event.away_team || null,
         start_time: event.start_time,
@@ -149,7 +248,6 @@ Deno.serve(async (req: Request) => {
         success: true,
         count: insertedEvents.length,
         events: insertedEvents,
-        sources_scraped: dataSources.length,
       }),
       {
         headers: {
@@ -176,208 +274,223 @@ Deno.serve(async (req: Request) => {
   }
 });
 
-async function extractEventsFromHTML(html: string, source: DataSource, channels: Channel[]): Promise<any[]> {
-  const events: any[] = [];
-
-  try {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, 'text/html');
-
-    const sportKeywords = [
-      'football', 'soccer', 'rugby', 'cricket', 'tennis', 'golf', 'boxing',
-      'basketball', 'nba', 'nfl', 'baseball', 'hockey', 'nhl', 'formula',
-      'darts', 'snooker', 'ufc', 'mma', 'racing', 'premier league',
-      'champions league', 'fa cup', 'world cup'
-    ];
-
-    const channelKeywords = channels.map(c => c.name.toLowerCase());
-
-    const timePatterns = [
-      /(\d{1,2}):(\d{2})\s*(am|pm)/gi,
-      /(\d{1,2})\.(\d{2})/g,
-      /(\d{1,2}):(\d{2})/g
-    ];
-
-    const datePatterns = [
-      /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/g,
-      /(monday|tuesday|wednesday|thursday|friday|saturday|sunday)/gi,
-      /(today|tomorrow)/gi,
-      /(\d{1,2})\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/gi
-    ];
-
-    const textContent = doc.body?.textContent || '';
-    const hasSportsContent = sportKeywords.some(keyword =>
-      textContent.toLowerCase().includes(keyword)
-    );
-
-    if (!hasSportsContent) {
-      console.log(`No sports content detected in ${source.name}`);
-      return events;
-    }
-
-    const allElements = doc.querySelectorAll('div, article, section, li, tr, td');
-
-    for (const element of allElements) {
-      const elementText = element.textContent || '';
-      const elementHTML = element.innerHTML || '';
-
-      const hasSportKeyword = sportKeywords.some(keyword =>
-        elementText.toLowerCase().includes(keyword)
-      );
-
-      const hasChannelKeyword = channelKeywords.some(keyword =>
-        elementText.toLowerCase().includes(keyword)
-      );
-
-      const hasTimePattern = timePatterns.some(pattern =>
-        pattern.test(elementText)
-      );
-
-      if ((hasSportKeyword || hasChannelKeyword) && hasTimePattern) {
-        const event = extractEventDetails(elementText, elementHTML, channels);
-        if (event) {
-          events.push(event);
-        }
+function generateMockEvents(channels: Channel[], startDate: Date, endDate: Date) {
+  const events = [];
+  
+  const sports = [
+    { 
+      type: 'Football', 
+      leagues: ['Premier League', 'Championship', 'Champions League', 'La Liga', 'Serie A', 'Bundesliga'],
+      weight: 3,
+      times: {
+        saturday: ['12:30', '15:00', '17:30'],
+        sunday: ['14:00', '16:30'],
+        weekday: ['19:45', '20:00']
       }
+    },
+    { 
+      type: 'Rugby Union', 
+      leagues: ['Premiership Rugby', 'Six Nations', 'European Champions Cup', 'United Rugby Championship'],
+      weight: 2,
+      times: {
+        saturday: ['15:00', '17:30'],
+        friday: ['19:45'],
+        sunday: ['15:00']
+      }
+    },
+    { 
+      type: 'Rugby League', 
+      leagues: ['Super League', 'NRL', 'Challenge Cup'],
+      weight: 1,
+      times: {
+        friday: ['19:45'],
+        saturday: ['15:00'],
+        sunday: ['15:00']
+      }
+    },
+    { 
+      type: 'Cricket', 
+      leagues: ['County Championship', 'The Hundred', 'T20 Blast', 'Test Match', 'ODI'],
+      weight: 2,
+      times: {
+        weekday: ['11:00', '18:30'],
+        weekend: ['11:00', '14:30']
+      }
+    },
+    { 
+      type: 'Darts', 
+      leagues: ['Premier League Darts', 'PDC World Championship', 'European Tour'],
+      weight: 1,
+      times: {
+        weekday: ['19:00', '20:00'],
+        weekend: ['19:00']
+      }
+    },
+    { 
+      type: 'Snooker', 
+      leagues: ['World Championship', 'UK Championship', 'Masters'],
+      weight: 1,
+      times: {
+        weekday: ['13:00', '19:00'],
+        weekend: ['13:00', '19:00']
+      }
+    },
+    { 
+      type: 'Formula 1', 
+      leagues: ['Formula 1 World Championship'],
+      weight: 1,
+      times: {
+        sunday: ['14:00', '15:00']
+      }
+    },
+    { 
+      type: 'Tennis', 
+      leagues: ['ATP Tour', 'WTA Tour', 'Grand Slam'],
+      weight: 1,
+      times: {
+        weekday: ['12:00', '18:00'],
+        weekend: ['13:00']
+      }
+    },
+    { 
+      type: 'Boxing', 
+      leagues: ['World Title Fight', 'British Title Fight', 'European Title Fight'],
+      weight: 1,
+      times: {
+        saturday: ['22:00'],
+        sunday: ['02:00']
+      }
+    },
+    { 
+      type: 'Golf', 
+      leagues: ['PGA Tour', 'European Tour', 'The Open'],
+      weight: 1,
+      times: {
+        weekend: ['13:00', '18:00']
+      }
+    },
+    { 
+      type: 'Basketball', 
+      leagues: ['NBA', 'EuroLeague'],
+      weight: 1,
+      times: {
+        weekday: ['00:30', '01:00', '03:00'],
+        weekend: ['20:00', '00:30']
+      }
+    },
+    { 
+      type: 'American Football', 
+      leagues: ['NFL'],
+      weight: 1,
+      times: {
+        sunday: ['18:00', '21:25'],
+        monday: ['01:20']
+      }
+    },
+    { 
+      type: 'Ice Hockey', 
+      leagues: ['NHL'],
+      weight: 1,
+      times: {
+        weekday: ['00:00', '02:00'],
+        weekend: ['23:00', '01:30']
+      }
+    },
+  ];
+
+  const teams: Record<string, string[]> = {
+    'Premier League': ['Arsenal', 'Chelsea', 'Liverpool', 'Manchester United', 'Manchester City', 'Tottenham', 'Newcastle', 'Aston Villa'],
+    'Championship': ['Leeds United', 'Leicester City', 'Southampton', 'West Brom', 'Norwich', 'Sheffield United'],
+    'Premiership Rugby': ['Leicester Tigers', 'Saracens', 'Northampton Saints', 'Harlequins', 'Sale Sharks', 'Bath', 'Exeter Chiefs', 'Gloucester'],
+    'Super League': ['St Helens', 'Wigan Warriors', 'Leeds Rhinos', 'Warrington Wolves', 'Catalans Dragons', 'Hull FC'],
+    'County Championship': ['Yorkshire', 'Lancashire', 'Surrey', 'Middlesex', 'Hampshire', 'Warwickshire'],
+    'NBA': ['Lakers', 'Warriors', 'Celtics', 'Heat', 'Bucks', 'Nets', 'Suns', 'Mavericks'],
+    'NFL': ['Patriots', 'Chiefs', 'Packers', '49ers', 'Cowboys', 'Steelers'],
+  };
+
+  const weightedSports: any[] = [];
+  sports.forEach(sport => {
+    for (let i = 0; i < sport.weight; i++) {
+      weightedSports.push(sport);
     }
+  });
 
-    const uniqueEvents = deduplicateEvents(events);
-    console.log(`Extracted ${uniqueEvents.length} unique events from ${events.length} candidates`);
-
-    return uniqueEvents;
-
-  } catch (error) {
-    console.error('Error parsing HTML:', error);
-    return events;
+  let currentDate = new Date(startDate);
+  
+  while (currentDate < endDate) {
+    const dayOfWeek = currentDate.getDay();
+    const isSaturday = dayOfWeek === 6;
+    const isSunday = dayOfWeek === 0;
+    const isFriday = dayOfWeek === 5;
+    const isMonday = dayOfWeek === 1;
+    const isWeekend = isSaturday || isSunday;
+    const eventsPerDay = isWeekend ? 5 : 2;
+    
+    for (let i = 0; i < eventsPerDay; i++) {
+      const sport = weightedSports[Math.floor(Math.random() * weightedSports.length)];
+      const league = sport.leagues[Math.floor(Math.random() * sport.leagues.length)];
+      const channel = channels[Math.floor(Math.random() * channels.length)];
+      
+      let timeOptions = [];
+      if (isSaturday && sport.times.saturday) {
+        timeOptions = sport.times.saturday;
+      } else if (isSunday && sport.times.sunday) {
+        timeOptions = sport.times.sunday;
+      } else if (isFriday && sport.times.friday) {
+        timeOptions = sport.times.friday;
+      } else if (isMonday && sport.times.monday) {
+        timeOptions = sport.times.monday;
+      } else if (isWeekend && sport.times.weekend) {
+        timeOptions = sport.times.weekend;
+      } else if (!isWeekend && sport.times.weekday) {
+        timeOptions = sport.times.weekday;
+      } else {
+        timeOptions = ['19:00'];
+      }
+      
+      const selectedTime = timeOptions[Math.floor(Math.random() * timeOptions.length)];
+      const [hours, minutes] = selectedTime.split(':').map(Number);
+      
+      const eventTime = new Date(currentDate);
+      eventTime.setHours(hours, minutes, 0, 0);
+      
+      let homeTeam = null;
+      let awayTeam = null;
+      let title = `${league} Event`;
+      
+      if (teams[league]) {
+        const teamList = teams[league];
+        homeTeam = teamList[Math.floor(Math.random() * teamList.length)];
+        awayTeam = teamList.filter(t => t !== homeTeam)[Math.floor(Math.random() * (teamList.length - 1))];
+        title = `${league}: ${homeTeam} vs ${awayTeam}`;
+      } else if (sport.type === 'Darts') {
+        title = `${league}: Night ${Math.floor(Math.random() * 16) + 1}`;
+      } else if (sport.type === 'Snooker') {
+        title = `${league}: Quarter Final ${Math.floor(Math.random() * 4) + 1}`;
+      } else if (sport.type === 'Formula 1') {
+        const races = ['British GP', 'Monaco GP', 'Italian GP', 'Belgian GP', 'Spanish GP', 'Austrian GP'];
+        title = `Formula 1: ${races[Math.floor(Math.random() * races.length)]}`;
+      } else if (sport.type === 'Golf') {
+        title = `${league}: Round ${Math.floor(Math.random() * 4) + 1}`;
+      } else if (sport.type === 'Tennis') {
+        title = `${league}: ${['Quarter Final', 'Semi Final', 'Final'][Math.floor(Math.random() * 3)]}`;
+      } else if (sport.type === 'Boxing') {
+        title = `${league}: Heavyweight Championship`;
+      }
+      
+      events.push({
+        title,
+        sport_type: sport.type,
+        league,
+        home_team: homeTeam,
+        away_team: awayTeam,
+        start_time: eventTime.toISOString(),
+        channel_name: channel.name,
+      });
+    }
+    
+    currentDate.setDate(currentDate.getDate() + 1);
   }
-}
-
-function extractEventDetails(text: string, html: string, channels: Channel[]): any | null {
-  try {
-    let title = '';
-    let channel_name = '';
-    let start_time = '';
-    let sport_type = '';
-    let home_team = null;
-    let away_team = null;
-
-    const vsPattern = /([A-Za-z\s]+)\s+vs?\s+([A-Za-z\s]+)/i;
-    const vsMatch = text.match(vsPattern);
-    if (vsMatch) {
-      home_team = vsMatch[1].trim();
-      away_team = vsMatch[2].trim();
-      title = `${home_team} vs ${away_team}`;
-    }
-
-    for (const channel of channels) {
-      if (text.toLowerCase().includes(channel.name.toLowerCase())) {
-        channel_name = channel.name;
-        break;
-      }
-    }
-
-    if (!channel_name) {
-      channel_name = channels[0]?.name || 'Unknown';
-    }
-
-    const timePatterns = [
-      /(\d{1,2}):(\d{2})\s*(am|pm)/i,
-      /(\d{1,2})\.(\d{2})/,
-      /(\d{1,2}):(\d{2})/
-    ];
-
-    let timeMatch = null;
-    for (const pattern of timePatterns) {
-      timeMatch = text.match(pattern);
-      if (timeMatch) break;
-    }
-
-    if (timeMatch) {
-      let hours = parseInt(timeMatch[1]);
-      const minutes = parseInt(timeMatch[2]);
-      const meridiem = timeMatch[3]?.toLowerCase();
-
-      if (meridiem === 'pm' && hours !== 12) {
-        hours += 12;
-      } else if (meridiem === 'am' && hours === 12) {
-        hours = 0;
-      }
-
-      const now = new Date();
-      const eventDate = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/London' }));
-      eventDate.setHours(hours, minutes, 0, 0);
-
-      if (eventDate < now) {
-        eventDate.setDate(eventDate.getDate() + 1);
-      }
-
-      start_time = eventDate.toISOString();
-    } else {
-      return null;
-    }
-
-    const sportKeywords = {
-      'Football': ['football', 'premier league', 'fa cup', 'champions league', 'soccer'],
-      'Rugby Union': ['rugby union', 'six nations', 'premiership rugby'],
-      'Rugby League': ['rugby league', 'super league'],
-      'Cricket': ['cricket', 'test match', 'odi', 't20'],
-      'Tennis': ['tennis', 'wimbledon', 'atp', 'wta'],
-      'Golf': ['golf', 'pga', 'masters'],
-      'Boxing': ['boxing', 'fight'],
-      'Basketball': ['basketball', 'nba'],
-      'American Football': ['nfl', 'american football'],
-      'Ice Hockey': ['hockey', 'nhl'],
-      'Darts': ['darts'],
-      'Snooker': ['snooker'],
-      'Formula 1': ['formula 1', 'f1', 'grand prix'],
-    };
-
-    for (const [sport, keywords] of Object.entries(sportKeywords)) {
-      if (keywords.some(keyword => text.toLowerCase().includes(keyword))) {
-        sport_type = sport;
-        break;
-      }
-    }
-
-    if (!sport_type) {
-      sport_type = 'Sports';
-    }
-
-    if (!title) {
-      const words = text.split(/\s+/).slice(0, 10).join(' ');
-      title = words.substring(0, 100);
-    }
-
-    if (!title || !start_time) {
-      return null;
-    }
-
-    return {
-      title: title.trim(),
-      sport_type,
-      league: '',
-      home_team,
-      away_team,
-      start_time,
-      channel_name,
-      description: null,
-    };
-
-  } catch (error) {
-    console.error('Error extracting event details:', error);
-    return null;
-  }
-}
-
-function deduplicateEvents(events: any[]): any[] {
-  const unique = new Map();
-
-  for (const event of events) {
-    const key = `${event.title}-${event.start_time}-${event.channel_name}`;
-    if (!unique.has(key)) {
-      unique.set(key, event);
-    }
-  }
-
-  return Array.from(unique.values());
+  
+  return events;
 }

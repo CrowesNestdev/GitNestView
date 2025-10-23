@@ -22,13 +22,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Calendar, Plus, Loader2, Sparkles, Filter, RefreshCw, Eye, EyeOff, MapPin, Globe } from "lucide-react";
+import { Calendar, Plus, Loader2, Sparkles, Filter, RefreshCw, Eye, EyeOff, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/lib/supabase";
-import DataSourcesDialog from "@/components/calendar/DataSourcesDialog";
 
 export default function SportsCalendar() {
   const { profile } = useAuth();
@@ -41,7 +40,6 @@ export default function SportsCalendar() {
   const [isAutoPopulating, setIsAutoPopulating] = useState(false);
   const [selectedSport, setSelectedSport] = useState("All Sports");
   const [showHidden, setShowHidden] = useState(false);
-  const [showDataSourcesDialog, setShowDataSourcesDialog] = useState(false);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -319,14 +317,6 @@ export default function SportsCalendar() {
               >
                 {showHidden ? <Eye className="w-4 h-4 mr-2" /> : <EyeOff className="w-4 h-4 mr-2" />}
                 {showHidden ? "Hide Hidden" : "Show Hidden"}
-              </Button>
-              <Button
-                onClick={() => setShowDataSourcesDialog(true)}
-                variant="outline"
-                size="sm"
-              >
-                <Globe className="w-4 h-4 mr-2" />
-                Data Sources
               </Button>
               <Button
                 onClick={handleAutoPopulate}
@@ -665,12 +655,6 @@ export default function SportsCalendar() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <DataSourcesDialog
-        open={showDataSourcesDialog}
-        onOpenChange={setShowDataSourcesDialog}
-        companyId={companyId}
-      />
     </div>
   );
 }
