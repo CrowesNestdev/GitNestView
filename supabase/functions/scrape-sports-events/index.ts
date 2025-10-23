@@ -141,11 +141,46 @@ Example format:
   }
 ]`;
 
+    const groqApiKey = Deno.env.get('GROQ_API_KEY');
     const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY');
     
     let events = [];
     
-    if (anthropicApiKey) {
+    if (groqApiKey) {
+      console.log('Using Groq API for event generation');
+      
+      const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${groqApiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: [{
+            role: 'user',
+            content: prompt,
+          }],
+          temperature: 0.7,
+          max_tokens: 8192,
+        }),
+      });
+
+      if (!groqResponse.ok) {
+        const errorText = await groqResponse.text();
+        throw new Error(`Groq API error: ${groqResponse.statusText} - ${errorText}`);
+      }
+
+      const groqData = await groqResponse.json();
+      const content = groqData.choices[0].message.content;
+      
+      const jsonMatch = content.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        events = JSON.parse(jsonMatch[0]);
+      }
+    } else if (anthropicApiKey) {
+      console.log('Using Anthropic API for event generation');
+      
       const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -175,6 +210,7 @@ Example format:
         events = JSON.parse(jsonMatch[0]);
       }
     } else {
+      console.log('No API key found, using mock data generator');
       events = generateMockEvents(channels, ukNow, fourWeeksFromNow);
     }
 
