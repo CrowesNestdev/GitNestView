@@ -113,9 +113,11 @@ async function scrapeTheSportsDB(sport: string, league: string): Promise<SportsE
         const fourWeeksFromNow = new Date(now.getTime() + 28 * 24 * 60 * 60 * 1000);
 
         if (eventDate >= now && eventDate <= fourWeeksFromNow) {
+          const detectedSport = event.strSport || sport;
+
           events.push({
             title: `${event.strHomeTeam} vs ${event.strAwayTeam}`,
-            sport_type: sport,
+            sport_type: detectedSport,
             league: event.strLeague,
             home_team: event.strHomeTeam,
             away_team: event.strAwayTeam,
@@ -126,6 +128,8 @@ async function scrapeTheSportsDB(sport: string, league: string): Promise<SportsE
         }
       });
     }
+
+    console.log(`TheSportsDB returned ${events.length} events for ${league}`);
   } catch (error) {
     console.error(`Error scraping TheSportsDB for ${league}:`, error);
   }
@@ -222,20 +226,26 @@ Deno.serve(async (req: Request) => {
     if (apiFootballKey) {
       console.log('Scraping API-Football...');
       const apiFootballEvents = await scrapeAPIFootball(apiFootballKey);
+      console.log(`API-Football returned ${apiFootballEvents.length} events`);
       allEvents.push(...apiFootballEvents);
     }
 
     console.log('Scraping TheSportsDB for Premier League...');
     const plEvents = await scrapeTheSportsDB('Football', 'Premier League');
+    console.log(`Premier League events: ${plEvents.length}`);
     allEvents.push(...plEvents);
 
     console.log('Scraping TheSportsDB for Champions League...');
     const clEvents = await scrapeTheSportsDB('Football', 'Champions League');
+    console.log(`Champions League events: ${clEvents.length}`);
     allEvents.push(...clEvents);
 
     console.log('Scraping TheSportsDB for Rugby Premiership...');
     const rugbyEvents = await scrapeTheSportsDB('Rugby', 'Rugby Premiership');
+    console.log(`Rugby events: ${rugbyEvents.length}`);
     allEvents.push(...rugbyEvents);
+
+    console.log(`Total events before deduplication: ${allEvents.length}`);
 
     if (allEvents.length === 0) {
       throw new Error('No events found from any source');
