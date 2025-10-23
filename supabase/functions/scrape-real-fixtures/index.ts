@@ -113,7 +113,10 @@ async function scrapeTheSportsDB(sport: string, league: string): Promise<SportsE
         const fourWeeksFromNow = new Date(now.getTime() + 28 * 24 * 60 * 60 * 1000);
 
         if (eventDate >= now && eventDate <= fourWeeksFromNow) {
-          const detectedSport = event.strSport || sport;
+          let detectedSport = event.strSport || sport;
+          if (detectedSport === 'Soccer') {
+            detectedSport = 'Football';
+          }
 
           events.push({
             title: `${event.strHomeTeam} vs ${event.strAwayTeam}`,
