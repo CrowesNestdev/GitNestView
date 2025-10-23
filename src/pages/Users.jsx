@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { useAuth } from "@/contexts/AuthContext";
+import { profilesService, sitesService } from "@/services/database";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,45 +33,37 @@ export default function Users() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [selectedSite, setSelectedSite] = useState("");
   
-  const [user, setUser] = useState(null);
+  const { profile } = useAuth();
   const [companyId, setCompanyId] = useState(null);
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const currentUser = await base44.auth.me();
-        setUser(currentUser);
-        
-        const viewingCompanyId = localStorage.getItem('superAdminViewingCompany');
-        if (currentUser.is_super_admin && viewingCompanyId) {
-          setCompanyId(viewingCompanyId);
-        } else {
-          setCompanyId(currentUser.company_id);
-        }
-      } catch (error) {
-        console.error("Error loading user:", error);
-      }
-    };
-    loadUser();
-  }, []);
+    if (!profile) return;
+
+    const viewingCompanyId = localStorage.getItem('superAdminViewingCompany');
+    if (profile.is_super_admin && viewingCompanyId) {
+      setCompanyId(viewingCompanyId);
+    } else {
+      setCompanyId(profile.company_id);
+    }
+  }, [profile]);
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['users', companyId],
-    queryFn: () => base44.entities.User.filter({ company_id: companyId }),
+    queryFn: () => profilesService.getCompanyUsers(companyId),
     enabled: !!companyId,
   });
 
   const { data: sites = [] } = useQuery({
     queryKey: ['sites', companyId],
-    queryFn: () => base44.entities.Site.filter({ company_id: companyId }),
+    queryFn: () => sitesService.getByCompany(companyId),
     enabled: !!companyId,
   });
 
   const updateUserMutation = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.User.update(id, data),
+    mutationFn: ({ id, data }) => profilesService.updateProfile(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users', companyId] }); // Invalidate with companyId
+      queryClient.invalidateQueries({ queryKey: ['users', companyId] });
       setEditingUser(null);
       setSelectedSite("");
     },

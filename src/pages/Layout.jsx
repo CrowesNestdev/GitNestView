@@ -18,7 +18,8 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { base44 } from "@/api/base44Client";
+import { useAuth } from "@/contexts/AuthContext";
+import { companiesService } from "@/services/database";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -80,39 +81,34 @@ const settingsItem = {
 
 export default function Layout({ children, currentPageName }) {
   const location = useLocation();
-  const [user, setUser] = React.useState(null);
+  const { profile, signOut, isSuperAdmin, isAdmin } = useAuth();
   const [company, setCompany] = React.useState(null);
-  const [isAdmin, setIsAdmin] = React.useState(false);
-  const [isSuperAdmin, setIsSuperAdmin] = React.useState(false);
   const [isViewingAsSuper, setIsViewingAsSuper] = React.useState(false);
 
   React.useEffect(() => {
-    const loadUser = async () => {
+    const loadCompany = async () => {
+      if (!profile) return;
+
       try {
-        const currentUser = await base44.auth.me();
-        setUser(currentUser);
-        setIsAdmin(currentUser.role === 'admin');
-        setIsSuperAdmin(currentUser.is_super_admin === true);
-        
         const viewingCompanyId = localStorage.getItem('superAdminViewingCompany');
-        if (currentUser.is_super_admin && viewingCompanyId) {
+        if (profile.is_super_admin && viewingCompanyId) {
           setIsViewingAsSuper(true);
-          const companies = await base44.entities.Company.filter({ id: viewingCompanyId });
-          if (companies.length > 0) {
-            setCompany(companies[0]);
+          const companyData = await companiesService.getById(viewingCompanyId);
+          if (companyData) {
+            setCompany(companyData);
           }
-        } else if (currentUser.company_id) {
-          const companies = await base44.entities.Company.filter({ id: currentUser.company_id });
-          if (companies.length > 0) {
-            setCompany(companies[0]);
+        } else if (profile.company_id) {
+          const companyData = await companiesService.getById(profile.company_id);
+          if (companyData) {
+            setCompany(companyData);
           }
         }
       } catch (error) {
-        console.error("Error loading user:", error);
+        console.error("Error loading company:", error);
       }
     };
-    loadUser();
-  }, []);
+    loadCompany();
+  }, [profile]);
 
   const handleExitSuperView = () => {
     localStorage.removeItem('superAdminViewingCompany');
@@ -231,12 +227,12 @@ export default function Layout({ children, currentPageName }) {
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 bg-gradient-to-br from-gray-700 to-gray-900 rounded-full flex items-center justify-center">
                   <span className="text-white font-semibold text-sm">
-                    {user?.full_name?.charAt(0) || 'U'}
+                    {profile?.full_name?.charAt(0) || 'U'}
                   </span>
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-gray-900 text-sm truncate">
-                    {user?.full_name || 'User'}
+                    {profile?.full_name || 'User'}
                   </p>
                   <p className="text-xs text-gray-500 truncate">
                     {isSuperAdmin ? 'Super Admin' : isAdmin ? 'Administrator' : 'Site User'}
@@ -246,7 +242,7 @@ export default function Layout({ children, currentPageName }) {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => base44.auth.logout()}
+                onClick={signOut}
                 className="hover:bg-red-50 hover:text-red-600"
               >
                 <LogOut className="w-4 h-4" />
@@ -264,7 +260,7 @@ export default function Layout({ children, currentPageName }) {
           </header>
 
           <div className="flex-1 overflow-auto">
-            {user && !user.company_id && !user.is_super_admin && user.role !== 'admin' && (
+            {profile && !profile.company_id && !profile.is_super_admin && profile.role !== 'admin' && (
               <div className="p-6">
                 <Alert className="bg-amber-50 border-amber-200">
                   <Building2 className="w-4 h-4 text-amber-600" />

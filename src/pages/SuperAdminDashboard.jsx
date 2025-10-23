@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { base44 } from "@/api/base44Client";
+import { companiesService, sitesService, profilesService } from "@/services/database";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,21 +39,21 @@ export default function SuperAdminDashboard() {
 
   const { data: companies = [], isLoading } = useQuery({
     queryKey: ['companies'],
-    queryFn: () => base44.entities.Company.list('-created_date'),
+    queryFn: () => companiesService.getAll(),
   });
 
   const { data: allSites = [] } = useQuery({
     queryKey: ['all-sites'],
-    queryFn: () => base44.entities.Site.list(),
+    queryFn: () => sitesService.getAll(),
   });
 
   const { data: allUsers = [] } = useQuery({
     queryKey: ['all-users'],
-    queryFn: () => base44.entities.User.list(),
+    queryFn: () => profilesService.getAllUsers(),
   });
 
   const createCompanyMutation = useMutation({
-    mutationFn: (data) => base44.entities.Company.create(data),
+    mutationFn: (data) => companiesService.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['companies'] });
       closeDialog();
@@ -61,7 +61,7 @@ export default function SuperAdminDashboard() {
   });
 
   const updateCompanyMutation = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.Company.update(id, data),
+    mutationFn: ({ id, data }) => companiesService.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['companies'] });
       closeDialog();
