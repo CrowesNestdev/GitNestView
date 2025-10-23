@@ -76,9 +76,35 @@ export const AuthProvider = ({ children }) => {
 
       if (error) {
         console.error('Error loading profile:', error);
+        setLoading(false);
+        return;
       }
 
-      setProfile(data);
+      if (!data) {
+        console.log('No profile found, creating one...');
+        const { data: { user } } = await supabase.auth.getUser();
+
+        if (user) {
+          const { data: newProfile, error: insertError } = await supabase
+            .from('profiles')
+            .insert({
+              id: userId,
+              email: user.email,
+              full_name: user.user_metadata?.full_name || '',
+              role: 'user'
+            })
+            .select()
+            .single();
+
+          if (insertError) {
+            console.error('Error creating profile:', insertError);
+          } else {
+            setProfile(newProfile);
+          }
+        }
+      } else {
+        setProfile(data);
+      }
     } catch (error) {
       console.error('Error loading profile:', error);
     } finally {
