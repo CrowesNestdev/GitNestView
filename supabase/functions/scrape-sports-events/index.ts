@@ -55,70 +55,37 @@ Deno.serve(async (req: Request) => {
 
     const channelNames = channels.map(c => c.name).join(', ');
 
-    const additionalWebsites = channels.some(c =>
-      c.name.toLowerCase().includes('sky') ||
-      c.name.toLowerCase().includes('bt') ||
-      c.name.toLowerCase().includes('tnt')
-    ) ? '' : '\n- Other relevant sports broadcast websites';
+    const prompt = `You are an AI tasked with retrieving a list of sporting events broadcasted over the next 4 weeks on these channels: ${channelNames}.
 
-    const prompt = `Find upcoming sports fixtures that will be broadcast on UK TV channels: ${channelNames}
+Your output must include the following details for each event:
+1. Event Title
+2. Date
+3. Start Time
+4. Channel
+5. Category (e.g., Football, Basketball, Tennis, etc.)
 
-Search for fixtures in the next 4 weeks from today.
+The events must be genuine and verified from reputable sources. Ensure that the information is accurate and formatted clearly.
 
-WHERE TO SEARCH:
-- Official TV channel schedules (Sky Sports, BT Sport, TNT Sports websites)
-- Premier League official fixtures page
-- BBC Sport fixtures
-- Official league/competition websites
-- TV guide websites (RadioTimes, TVGuide)${additionalWebsites}
-
-IMPORTANT RULES:
-✓ Only include matches/events you can verify from reliable sources
-✓ Include the exact date and time if found
-✓ If a fixture is announced but time is TBC, skip it
-✓ Focus on major events and confirmed broadcasts
-✗ Don't invent events that don't exist
-✗ Don't guess at dates or times
-
-SPORTS TO INCLUDE:
-- Football (Premier League, Champions League, FA Cup, etc.)
-- Rugby (Premiership, Six Nations, etc.)
-- Cricket (international matches, The Hundred, etc.)
-- Tennis (tournaments, Grand Slams)
-- Formula 1 (race weekends)
-- Boxing (major fights)
-- Golf (tournaments)
-
-For each event provide:
-- title: Title with teams/competitors
-- sport_type: Sport type
-- league: League/competition name
-- home_team: Home team (if applicable)
-- away_team: Away team (if applicable)
-- start_time: Start date and time (YYYY-MM-DDTHH:MM:SS format in UK time, ISO 8601)
-- channel_name: Channel name
-- description: Brief description (optional)
-
-Return as many REAL events as you can find. It's okay to return 0 events if you can't find any confirmed broadcasts.
+Exclude any events that do not meet the criteria of being verified or are not within the specified timeframe. Focus on well-known networks and channels that are recognized for sports broadcasting.
 
 Current UK date/time: ${ukNow.toISOString()}
 Search until: ${fourWeeksFromNow.toISOString()}
 
-Return ONLY a JSON array of events with no additional text.
-
-Example format:
+Return the data as a JSON array with the following structure:
 [
   {
-    "title": "Premier League: Arsenal vs Liverpool",
-    "sport_type": "Football",
-    "league": "Premier League",
-    "home_team": "Arsenal",
-    "away_team": "Liverpool",
-    "start_time": "2025-10-25T15:00:00.000Z",
-    "channel_name": "Sky Sports",
-    "description": "Top of the table clash at the Emirates"
+    "title": "Event title with teams/competitors",
+    "sport_type": "Sport category (e.g., Football, Rugby, Cricket, Tennis, etc.)",
+    "league": "League or competition name",
+    "home_team": "Home team name (if applicable, otherwise null)",
+    "away_team": "Away team name (if applicable, otherwise null)",
+    "start_time": "ISO 8601 datetime in UK timezone (e.g., 2025-10-25T15:00:00.000Z)",
+    "channel_name": "Channel name from the list provided",
+    "description": "Brief description (optional)"
   }
-]`;
+]
+
+Return ONLY the JSON array with no additional text.`;
 
     const groqApiKey = Deno.env.get('GROQ_API_KEY');
 
