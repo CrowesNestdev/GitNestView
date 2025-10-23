@@ -55,61 +55,56 @@ Deno.serve(async (req: Request) => {
 
     const channelNames = channels.map(c => c.name).join(', ');
 
-    const prompt = `Generate a realistic and diverse international sports schedule for the next 4 weeks for these TV channels: ${channelNames}.
+    const additionalWebsites = channels.some(c =>
+      c.name.toLowerCase().includes('sky') ||
+      c.name.toLowerCase().includes('bt') ||
+      c.name.toLowerCase().includes('tnt')
+    ) ? '' : '\n- Other relevant sports broadcast websites';
 
-IMPORTANT: All times must be in UK timezone (GMT/BST). Use proper UK scheduling patterns.
+    const prompt = `Find upcoming sports fixtures that will be broadcast on UK TV channels: ${channelNames}
 
-Include a DIVERSE MIX of UK, European, and International sports:
+Search for fixtures in the next 4 weeks from today.
 
-UK & European Sports (PRIORITY):
-- Football: Premier League, Championship, EFL Cup, FA Cup, Champions League, Europa League, La Liga, Serie A, Bundesliga, Ligue 1
-- Rugby Union: Six Nations, Premiership Rugby, European Champions Cup, United Rugby Championship
-- Rugby League: Super League, Challenge Cup, NRL
-- Cricket: County Championship, The Hundred, T20 Blast, Test Matches, ODI, IPL
-- Darts: PDC World Championship, Premier League Darts
-- Snooker: World Championship, UK Championship, Masters
-- Golf: The Open, European Tour, Ryder Cup
-- Boxing: British & European title fights
-- Horse Racing: Cheltenham, Royal Ascot, Grand National
-- Formula 1: Grand Prix races
-- Tennis: Wimbledon, ATP/WTA Tours
+WHERE TO SEARCH:
+- Official TV channel schedules (Sky Sports, BT Sport, TNT Sports websites)
+- Premier League official fixtures page
+- BBC Sport fixtures
+- Official league/competition websites
+- TV guide websites (RadioTimes, TVGuide)${additionalWebsites}
 
-International Sports:
-- Basketball: NBA, EuroLeague
-- American Football: NFL
-- Ice Hockey: NHL
-- Baseball: MLB
-- UFC/MMA events
+IMPORTANT RULES:
+✓ Only include matches/events you can verify from reliable sources
+✓ Include the exact date and time if found
+✓ If a fixture is announced but time is TBC, skip it
+✓ Focus on major events and confirmed broadcasts
+✗ Don't invent events that don't exist
+✗ Don't guess at dates or times
 
-For each event, provide:
-- title: Full descriptive title
-- sport_type: Type of sport (e.g., Football, Rugby Union, Cricket, Darts, Snooker, etc.)
+SPORTS TO INCLUDE:
+- Football (Premier League, Champions League, FA Cup, etc.)
+- Rugby (Premiership, Six Nations, etc.)
+- Cricket (international matches, The Hundred, etc.)
+- Tennis (tournaments, Grand Slams)
+- Formula 1 (race weekends)
+- Boxing (major fights)
+- Golf (tournaments)
+
+For each event provide:
+- title: Title with teams/competitors
+- sport_type: Sport type
 - league: League/competition name
-- home_team: Home team name (if applicable)
-- away_team: Away team name (if applicable)
-- start_time: ISO datetime string in UK timezone
-- channel_name: Which channel will broadcast it
-- description: Brief event description (optional)
+- home_team: Home team (if applicable)
+- away_team: Away team (if applicable)
+- start_time: Start date and time (YYYY-MM-DDTHH:MM:SS format in UK time, ISO 8601)
+- channel_name: Channel name
+- description: Brief description (optional)
 
-IMPORTANT:
-- Generate 80-120 events total
-- 60% should be UK/European sports
-- 40% international sports
-- ALL TIMES IN UK TIMEZONE (GMT/BST)
-- Realistic UK scheduling:
-  * Football: Saturdays 12:30pm, 3pm, 5:30pm; Sundays 2pm, 4:30pm; Midweek 7:45pm, 8pm
-  * Rugby: Saturdays 3pm, 5:30pm; Fridays 7:45pm
-  * Cricket: Day matches 11am; Evening 6:30pm
-  * Darts/Snooker: Evening 7pm-9pm
-  * NFL (converted to UK time): Sunday evenings 6pm, 9:25pm; Monday 1:20am
-  * NBA (converted to UK time): Late night 12:30am-3am
-- More events on weekends
-- Vary the channels appropriately
-
-Return ONLY a JSON array of events with no additional text.
+Return as many REAL events as you can find. It's okay to return 0 events if you can't find any confirmed broadcasts.
 
 Current UK date/time: ${ukNow.toISOString()}
-End date: ${fourWeeksFromNow.toISOString()}
+Search until: ${fourWeeksFromNow.toISOString()}
+
+Return ONLY a JSON array of events with no additional text.
 
 Example format:
 [
@@ -122,22 +117,6 @@ Example format:
     "start_time": "2025-10-25T15:00:00.000Z",
     "channel_name": "Sky Sports",
     "description": "Top of the table clash at the Emirates"
-  },
-  {
-    "title": "Premiership Rugby: Leicester Tigers vs Saracens",
-    "sport_type": "Rugby Union",
-    "league": "Premiership Rugby",
-    "home_team": "Leicester Tigers",
-    "away_team": "Saracens",
-    "start_time": "2025-10-26T15:00:00.000Z",
-    "channel_name": "BT Sport"
-  },
-  {
-    "title": "PDC Premier League Darts: Night 5",
-    "sport_type": "Darts",
-    "league": "Premier League Darts",
-    "start_time": "2025-10-27T19:00:00.000Z",
-    "channel_name": "Sky Sports"
   }
 ]`;
 
