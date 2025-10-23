@@ -86,10 +86,15 @@ export default function SiteDisplay() {
     queryKey: ['public-events', site?.company_id],
     queryFn: async () => {
       try {
+        const now = new Date().toISOString();
+        const weekAhead = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
         const { data, error } = await supabase
           .from('sports_events')
           .select('*, channels(*)')
           .eq('company_id', site.company_id)
+          .gte('start_time', now)
+          .lte('start_time', weekAhead)
           .order('start_time', { ascending: true });
 
         if (error) throw error;
@@ -202,8 +207,7 @@ export default function SiteDisplay() {
   };
 
   const siteEvents = events
-    .filter(event => schedules.some(s => s.event_id === event.id))
-    .filter(event => new Date(event.start_time) >= new Date().setHours(0, 0, 0, 0));
+    .filter(event => schedules.some(s => s.event_id === event.id));
 
   const nowShowing = siteEvents.filter(event => {
     const start = new Date(event.start_time);
