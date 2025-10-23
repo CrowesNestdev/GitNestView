@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabase";
 import { useQuery } from "@tanstack/react-query";
 import { Tv, Calendar, Clock, Loader2 } from "lucide-react";
 import { format, isToday, isTomorrow, isThisWeek, isFuture, isWithinInterval, addMinutes } from "date-fns";
@@ -43,8 +43,14 @@ export default function SiteDisplay() {
     queryKey: ['public-site', siteId],
     queryFn: async () => {
       try {
-        const sites = await base44.entities.Site.filter({ id: siteId });
-        return sites[0];
+        const { data, error } = await supabase
+          .from('sites')
+          .select('*')
+          .eq('id', siteId)
+          .maybeSingle();
+
+        if (error) throw error;
+        return data;
       } catch (err) {
         console.error("Error loading site:", err);
         throw err;
@@ -59,7 +65,14 @@ export default function SiteDisplay() {
     queryKey: ['public-schedules', siteId],
     queryFn: async () => {
       try {
-        return await base44.entities.SiteSchedule.filter({ site_id: siteId });
+        const { data, error } = await supabase
+          .from('site_events')
+          .select('*')
+          .eq('site_id', siteId)
+          .eq('is_visible', true);
+
+        if (error) throw error;
+        return data || [];
       } catch (err) {
         console.error("Error loading schedules:", err);
         return [];
@@ -73,7 +86,14 @@ export default function SiteDisplay() {
     queryKey: ['public-events', site?.company_id],
     queryFn: async () => {
       try {
-        return await base44.entities.SportEvent.filter({ company_id: site.company_id }, 'start_time');
+        const { data, error } = await supabase
+          .from('sports_events')
+          .select('*, channels(*)')
+          .eq('company_id', site.company_id)
+          .order('start_time', { ascending: true });
+
+        if (error) throw error;
+        return data || [];
       } catch (err) {
         console.error("Error loading events:", err);
         return [];
@@ -87,7 +107,13 @@ export default function SiteDisplay() {
     queryKey: ['public-channels', site?.company_id],
     queryFn: async () => {
       try {
-        return await base44.entities.Channel.filter({ company_id: site.company_id });
+        const { data, error } = await supabase
+          .from('channels')
+          .select('*')
+          .eq('company_id', site.company_id);
+
+        if (error) throw error;
+        return data || [];
       } catch (err) {
         console.error("Error loading channels:", err);
         return [];
@@ -98,13 +124,33 @@ export default function SiteDisplay() {
   });
 
   const { data: brandScheme } = useQuery({
-    queryKey: ['brand-scheme', site?.brand_scheme_id],
+    queryKey: ['brand-scheme', site?.id],
     queryFn: async () => {
-      if (!site?.brand_scheme_id) return null;
-      const schemes = await base44.entities.BrandScheme.filter({ id: site.brand_scheme_id });
-      return schemes[0];
+      if (!site?.id) return null;
+      try {
+        const { data: siteSchemes, error: siteSchemeError } = await supabase
+          .from('site_brand_schemes')
+          .select('brand_scheme_id')
+          .eq('site_id', site.id)
+          .limit(1)
+          .maybeSingle();
+
+        if (siteSchemeError || !siteSchemes?.brand_scheme_id) return null;
+
+        const { data, error } = await supabase
+          .from('brand_schemes')
+          .select('*')
+          .eq('id', siteSchemes.brand_scheme_id)
+          .maybeSingle();
+
+        if (error) throw error;
+        return data;
+      } catch (err) {
+        console.error("Error loading brand scheme:", err);
+        return null;
+      }
     },
-    enabled: !!site?.brand_scheme_id,
+    enabled: !!site?.id,
     refetchInterval: 300000,
   });
 
