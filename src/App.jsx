@@ -32,6 +32,7 @@ function App() {
             <Route path="/forgot-password" element={<ForgotPassword />} />
 
             <Route path="/site-display" element={<SiteDisplay />} />
+            <Route path="/SiteDisplay" element={<SiteDisplay />} />
 
             <Route
               path="/"
