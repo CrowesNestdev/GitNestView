@@ -254,34 +254,40 @@ Deno.serve(async (req: Request) => {
       throw new Error('No events found from any source');
     }
 
-    const uniqueEvents = Array.from(
-      new Map(allEvents.map(event => [
-        `${event.home_team}-${event.away_team}-${event.start_time}`,
-        event
-      ])).values()
-    );
+    const eventChannelMap = new Map<string, { event: SportsEvent; channels: Set<string> }>();
 
-    console.log(`Found ${uniqueEvents.length} unique events`);
+    allEvents.forEach(event => {
+      const key = `${event.home_team}-${event.away_team}-${event.start_time}`;
 
-    const eventsToInsert = uniqueEvents.map((event) => {
+      if (!eventChannelMap.has(key)) {
+        eventChannelMap.set(key, {
+          event,
+          channels: new Set()
+        });
+      }
+
       const channel = channels.find(
         c => c.name.toLowerCase().includes('sky') || c.name.toLowerCase().includes('sport')
       ) || channels[0];
 
-      return {
-        company_id,
-        title: event.title,
-        sport_type: event.sport_type,
-        league: event.league,
-        home_team: event.home_team,
-        away_team: event.away_team,
-        start_time: event.start_time,
-        end_time: null,
-        channel_id: channel.id,
-        description: event.description || null,
-        is_featured: false,
-      };
+      eventChannelMap.get(key)!.channels.add(channel.id);
     });
+
+    console.log(`Found ${eventChannelMap.size} unique events`);
+
+    const eventsToInsert = Array.from(eventChannelMap.values()).map(({ event }) => ({
+      company_id,
+      title: event.title,
+      sport_type: event.sport_type,
+      league: event.league,
+      home_team: event.home_team,
+      away_team: event.away_team,
+      start_time: event.start_time,
+      end_time: null,
+      channel_id: null,
+      description: event.description || null,
+      is_featured: false,
+    }));
 
     const { data: insertedEvents, error: insertError } = await supabase
       .from('sports_events')
@@ -290,6 +296,25 @@ Deno.serve(async (req: Request) => {
 
     if (insertError) {
       throw insertError;
+    }
+
+    const eventChannelInserts = [];
+    insertedEvents.forEach((insertedEvent, index) => {
+      const eventData = Array.from(eventChannelMap.values())[index];
+      eventData.channels.forEach(channelId => {
+        eventChannelInserts.push({
+          event_id: insertedEvent.id,
+          channel_id: channelId
+        });
+      });
+    });
+
+    const { error: channelInsertError } = await supabase
+      .from('event_channels')
+      .insert(eventChannelInserts);
+
+    if (channelInsertError) {
+      console.error('Error inserting event channels:', channelInsertError);
     }
 
     return new Response(
